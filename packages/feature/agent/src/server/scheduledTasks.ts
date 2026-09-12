@@ -50,6 +50,16 @@ export interface ScheduledTask {
 const MAX_CONSECUTIVE_FAILURES = 3;
 
 /**
+ * How late a `once` task may still be fired after the moment it was due.
+ *
+ * Timers are plain setTimeout and do not survive the process, so a `once` task whose
+ * moment passes while cockpit is down has no timer to resume. Within this window the
+ * user's intent is still current ("in 10 minutes" during a restart), so the task runs
+ * a little late rather than not at all; past it, running would act on a stale intent.
+ */
+const MISSED_ONCE_GRACE_MS = 60 * 60 * 1000;
+
+/**
  * The prompt a task actually dispatches.
  *
  * A taskFile task REFERENCES the file and lets the agent read it — the content is
@@ -680,8 +690,10 @@ class ScheduledTaskManager {
   // ---- Internal ----
 
   /**
-   * Schedule a task. If nextFireTime has already passed, recalculate the next fire time instead of firing immediately.
-   * Returns true if a timer was set, or false if the task has expired and cannot be rescheduled (once type).
+   * Schedule a task. If nextFireTime has already passed, a recurring task gets its next
+   * occurrence recalculated, and a `once` task is fired on this boot if it came due
+   * within MISSED_ONCE_GRACE_MS (timers do not survive the process).
+   * Returns true if a timer was set, or false if a `once` task was retired unrun.
    */
   private scheduleTask(task: ScheduledTask): boolean {
     const now = Date.now();
@@ -692,9 +704,22 @@ class ScheduledTaskManager {
         task.nextFireTime = now + task.intervalMinutes * 60000;
       } else if (task.type === 'cron' && task.cron) {
         task.nextFireTime = getNextCronTime(task.cron);
+      } else if (now - task.nextFireTime <= MISSED_ONCE_GRACE_MS) {
+        // A `once` task that came due while the process was down. Fall through with a
+        // clamped (~0) delay so it fires on this boot instead of being retired unrun.
+        console.log(
+          `[ScheduledTask] once task ${task.id} came due ${Math.round((now - task.nextFireTime) / 1000)}s ago while down; firing now`,
+        );
       } else {
-        // once type has expired; mark as completed and do not schedule
+        // Missed by more than the grace window: retire it, but leave a trail. Flipping
+        // `completed` alone made an un-run task render identically to a failed one
+        // (the card shows lastResult !== 'success' as a failure), with nothing in the
+        // log and no unread marker to say it never ran.
         task.completed = true;
+        task.unread = true;
+        console.warn(
+          `[ScheduledTask] once task ${task.id} missed its fire time by ${Math.round((now - task.nextFireTime) / 60000)}min (grace ${MISSED_ONCE_GRACE_MS / 60000}min); not running`,
+        );
         return false;
       }
     }
@@ -704,7 +729,8 @@ class ScheduledTaskManager {
     // into Node's timer heap, where it would still fire and double-trigger fireTask.
     this.clearTimer(task.id);
 
-    const delay = task.nextFireTime - now;
+    // Clamped: the missed-`once` catch-up path above leaves nextFireTime in the past.
+    const delay = Math.max(0, task.nextFireTime - now);
     const timer = setTimeout(() => {
       this.fireTask(task.id);
     }, delay);
