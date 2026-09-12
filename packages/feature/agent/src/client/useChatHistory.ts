@@ -393,10 +393,15 @@ export function useChatHistory(
 
   // Load history messages (by sessionId)
   const loadHistory = useCallback(async (sid: string) => {
+    if (!cwd) return;
     setIsLoadingHistory(true);
     const historyEff = Effect.tryPromise({
       try: async () => {
-        const response = await fetch(`/api/session/${sid}/history`);
+        // cwd is part of the transcript's address, not a filter — without it the
+        // route cannot locate the session at all.
+        const response = await fetch(
+          `/api/session/${encodeURIComponent(sid)}/history?cwd=${encodeURIComponent(cwd)}`
+        );
         if (!response.ok) return null;
         return (await response.json()) as { messages?: ChatMessage[] };
       },
@@ -410,7 +415,7 @@ export function useChatHistory(
       console.error('Failed to load history:', exit.cause);
     }
     setIsLoadingHistory(false);
-  }, [setMessages]);
+  }, [cwd, setMessages]);
 
   // Load history messages on page load (runs once only)
   useEffect(() => {
