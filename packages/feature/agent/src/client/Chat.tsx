@@ -788,7 +788,7 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
   const independentTaskToggle = supportsNoHistory ? (
     <label
       className="flex items-center gap-2 text-xs cursor-pointer select-none"
-      title={t('chat.noHistoryHint', { defaultValue: 'No history context: each message is sent to the model on its own, with no prior conversation. The transcript above still records everything.' })}
+      data-tooltip={t('chat.noHistoryDesc', { defaultValue: 'each prompt is independent' })}
     >
       <input
         type="checkbox"
@@ -807,7 +807,6 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
         <MessageSquareOff className="w-3.5 h-3.5" />
         {t('chat.noHistory', { defaultValue: 'No history context' })}
       </span>
-      <span className="text-muted-foreground">· {t('chat.noHistoryDesc', { defaultValue: 'each prompt is independent' })}</span>
     </label>
   ) : null;
 
@@ -863,7 +862,7 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
             {isClaudeEngine && (
               <label
                 className="flex items-center gap-2 text-xs cursor-pointer select-none"
-                title={t('chat.planModeHint', { defaultValue: 'Plan mode: read-only exploration that produces a plan without editing. Uncheck and resend to implement.' })}
+                data-tooltip={t('chat.planModeDesc', { defaultValue: 'read-only · plan first, no edits' })}
               >
                 <input
                   type="checkbox"
@@ -882,7 +881,6 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
                   <ClipboardList className="w-3.5 h-3.5" />
                   {t('chat.planMode', { defaultValue: 'Plan mode' })}
                 </span>
-                <span className="text-muted-foreground">· {t('chat.planModeDesc', { defaultValue: 'read-only · plan first, no edits' })}</span>
               </label>
             )}
             {independentTaskToggle}
