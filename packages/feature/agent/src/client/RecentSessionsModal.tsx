@@ -91,8 +91,8 @@ export function RecentSessionsModal({ isOpen, onClose, onSwitchProject, sessionN
   // every user message, untruncated) so search isn't limited by the truncated,
   // 5+5-sampled display fields. Falls back to the display fields if an older
   // payload lacks searchText.
-  // Ordered the same way as the sidebar dropdown — running first, then
-  // done-but-unread, then the rest (see sessionOrder) — so the two lists of the
+  // Ordered the same way as the sidebar dropdown — done-but-unread first, then
+  // running, then the rest (see sessionOrder) — so the two lists of the
   // same sessions never disagree about what is at the top.
   const filteredSessions = sortSessionsForDisplay(sessions).filter((session) => {
     if (!searchKeyword) return true;

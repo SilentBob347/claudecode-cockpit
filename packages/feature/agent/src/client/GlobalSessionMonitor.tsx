@@ -38,7 +38,7 @@ interface GlobalSessionMonitorProps {
 
 export function GlobalSessionMonitor({ currentCwd, onSwitchProject, onResolveSessionNumbers, collapsed, sessions }: GlobalSessionMonitorProps) {
   const { t } = useTranslation();
-  // Running first, then done-but-unread, then the rest (see sessionOrder).
+  // Done-but-unread first, then running, then the rest (see sessionOrder).
   const orderedSessions = useMemo(() => sortSessionsForDisplay(sessions), [sessions]);
   const [isOpen, setIsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

@@ -61,7 +61,7 @@ export function MobileSessionList({ onOpen, onUseDesktop, initialSessions }: Mob
 
   const projectName = (cwd: string) => cwd.split('/').pop() || cwd;
   const loadingCount = sessions.filter((s) => s.status === 'loading').length;
-  // Same order as the desktop lists: running, then done-but-unread, then the
+  // Same order as the desktop lists: done-but-unread, then running, then the
   // rest (see sessionOrder).
   const orderedSessions = useMemo(() => sortSessionsForDisplay(sessions), [sessions]);
 

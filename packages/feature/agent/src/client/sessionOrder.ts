@@ -5,7 +5,7 @@
  * slices the top 15 in getGlobalSessionsSnapshot), which buries the two rows
  * that are actually asking for attention: the run that is still going and the
  * run that finished while you were elsewhere. So the lists group by status
- * first — running, then done-but-unread, then everything else — and keep
+ * first — done-but-unread, then running, then everything else — and keep
  * newest-first inside each group.
  *
  * This is presentation only. It reorders what was received; it cannot surface a
@@ -21,9 +21,9 @@ interface OrderableSession {
   lastActive: number;
 }
 
-/** loading → unread → the rest. */
+/** unread → loading → the rest. */
 const statusRank = (status?: string): number =>
-  status === 'loading' ? 0 : status === 'unread' ? 1 : 2;
+  status === 'unread' ? 0 : status === 'loading' ? 1 : 2;
 
 /** Returns a new array; the input (a WS payload / fetch result) is never mutated. */
 export function sortSessionsForDisplay<T extends OrderableSession>(sessions: readonly T[]): T[] {
