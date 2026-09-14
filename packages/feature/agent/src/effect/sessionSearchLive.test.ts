@@ -10,6 +10,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-ss-'));
 const home = path.join(root, 'home');
 const cockpitHome = path.join(root, 'cockpit');
 process.env.HOME = home;
+// os.homedir() reads USERPROFILE on Windows, not HOME.
+process.env.USERPROFILE = home;
 process.env.COCKPIT_HOME = cockpitHome;
 
 type LiveMod = typeof import('./sessionSearchLive');
@@ -145,7 +147,8 @@ describe('SessionSearchServiceLive', () => {
     expect(hits[0].link).toContain(encodeURIComponent(sid));
   });
 
-  it.skipIf(process.getuid?.() === 0)('keeps the indexed copy on a read failure and retries once readable again', async () => {
+  // chmod 0o000 cannot make a file unreadable as root, nor on Windows.
+  it.skipIf(process.getuid?.() === 0 || process.platform === 'win32')('keeps the indexed copy on a read failure and retries once readable again', async () => {
     const sid = '99999999-9999-4999-8999-999999999999';
     const dsDir = path.join(cockpitHome, 'deepseek-sessions', encodePath(projB));
     fs.mkdirSync(dsDir, { recursive: true });

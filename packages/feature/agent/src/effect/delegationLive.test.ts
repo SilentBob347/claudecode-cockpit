@@ -11,6 +11,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cockpit-dl-'));
 const home = path.join(root, 'home');
 const cockpitHome = path.join(root, 'cockpit');
 process.env.HOME = home;
+// os.homedir() reads USERPROFILE on Windows, not HOME.
+process.env.USERPROFILE = home;
 process.env.COCKPIT_HOME = cockpitHome;
 
 type LiveMod = typeof import('./delegationLive');
