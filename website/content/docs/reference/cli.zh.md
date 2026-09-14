@@ -122,6 +122,8 @@ cockpit update
 | `COCKPIT_SNAPSHOT_KEEP_DAYS` | [工具快照](/zh/docs/agent/snapshots/)保留天数。默认 `7`。 |
 | `COCKPIT_SNAPSHOT_REPO_TTL_DAYS` | 项目多少天不活跃后整个快照仓库被移除。默认 `30`。 |
 | `COCKPIT_SNAPSHOT_MAX_FILE_KB` | 快照跟踪的单文件大小上限(KB)。默认 `2048`(2 MB)。 |
+| `COCKPIT_ALLOWED_HOSTS` | 逗号分隔的额外 host 名(不带协议、不带端口),经 loopback 到达的请求可以在 `Host` 头里使用 —— 例如未开令牌的隧道的公网域名。见下文「Host 与 Origin 校验」。 |
+| `COCKPIT_DELEGATE_MAX` | 同时运行的委派会话([`/dl`](/zh/docs/agent/skills/))上限。默认 `4`,必须 ≥ 1。超出的请求直接拒绝。 |
 
 #### 数据目录与起第二个实例
 
@@ -158,6 +160,25 @@ cockpit --token 你的密钥        # 或:COCKPIT_TOKEN=你的密钥 cockpit
 ```bash
 COCKPIT_HOST=0.0.0.0 cockpit --token 你的密钥
 ```
+
+#### Host 与 Origin 校验
+
+与令牌无关,所有 HTTP 请求和 WebSocket 升级都先经过一道 Host / Origin 校验,挡住浏览器里的网页够到本机 Cockpit 的两条路 —— DNS 重绑定和跨站请求伪造。被拒的请求返回 `403 Forbidden`。
+
+- **经 loopback 到达的请求,必须用允许的 host 名访问 Cockpit:** `localhost`(或 `*.localhost`)、`127.x.x.x` / `::1` 地址、本机主机名(及 `<主机名>.local`)、`COCKPIT_HOST` 设为具体地址时的该值,或 `COCKPIT_ALLOWED_HOSTS` 里列出的名字。来自其他机器的请求(局域网,`COCKPIT_HOST=0.0.0.0`)不做 host 校验。
+- **写操作请求(`GET` / `HEAD` / `OPTIONS` 以外)和 WebSocket 升级,若带 `Origin` 头,必须与 `Host` 同源。** 浏览器发这类请求总会带 `Origin`;`curl`、CLI、skill 不带,不受影响。
+
+**隧道(ngrok、cloudflared 等)—— 行为变更。** 隧道客户端跑在同一台机器上,经 loopback 连进来,而 `Host` 是隧道的公网域名,所以这类请求现在会被拒绝,除非:
+
+- 把该域名加进 `COCKPIT_ALLOWED_HOSTS`;或
+- 开启令牌 —— 令牌模式下,带转发头(`X-Forwarded-For`、`X-Real-IP` 或 `Forwarded`)的请求交给令牌网关处理,由它要求令牌。
+
+```bash
+COCKPIT_ALLOWED_HOSTS=my-box.ngrok.app cockpit     # 不开令牌:拿到 URL 的人都能进
+cockpit --token 你的密钥                            # 令牌模式:隧道需转发 X-Forwarded-For
+```
+
+保留隧道原始的 `Host` 头。若被改写成 `localhost`,浏览器的 `Origin` 就对不上,POST 和 WebSocket 会被 403。
 
 ## cockpit browser
 

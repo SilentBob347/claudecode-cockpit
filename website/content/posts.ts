@@ -32,6 +32,142 @@ export interface Post {
 
 export const posts: Post[] = [
   {
+    slug: 'find-and-delegate-sessions',
+    date: '2026-09-14',
+    keywords: [
+      'find past Claude Code session',
+      'search AI chat history',
+      'cross-project session search',
+      'delegate task to another agent',
+      'Claude Code subagent alternative',
+      'multi-engine agent delegation',
+      'Codex delegation',
+      '会话搜索',
+      '找回历史会话',
+      '子任务委派',
+      '跨引擎',
+      'Claude Code GUI',
+      'OpenCockpit',
+      'Cockpit',
+    ],
+    content: {
+      en: {
+        title: 'Find any past session with /ss, hand work off with /dl',
+        description:
+          'OpenCockpit adds two built-in commands. `/ss` finds a past session across every project, engine and date from one sentence. `/dl` hands a sub-task to a new session in any directory on any engine and returns at once — ask later how it went.',
+        readingTime: '3 min read',
+        body: `Two things get harder the longer you use OpenCockpit. You remember *talking* about something — "that session where we worked out the CSRF issue" — but not which project, which engine, or which week. And halfway through a task you spot work that belongs somewhere else — a flaky test in another repo, a job you'd rather give to Codex — and the only option is to stop, open a tab, switch directory and engine, re-explain the context, and remember to check back.
+
+This release adds one command for each.
+
+## \`/ss\` — find a session from one sentence
+
+\`\`\`text
+/ss the session where we worked out CSRF on the local API
+\`\`\`
+
+The agent doesn't search your sentence verbatim. It expands it into the keywords that would literally appear in that conversation — both languages for technical topics (\`跨站\` / \`CSRF\`), synonyms, the words the assistant would have used — searches, reads the snippets, and replies with 1–3 candidates:
+
+\`\`\`markdown
+1. **Local API request checks** — cockpit · claude · 2026-09-10
+   Walks through the CSRF issue you described, and settles on a fix
+   [Open session](/project?cwd=…&sessionId=…)
+\`\`\`
+
+Click the link and Cockpit switches to that project and opens the session in the Agent panel. The search covers every session Cockpit can read: Claude, Codex, DeepSeek, Kimi, GLM and Ollama, in every project, with no date cutoff.
+
+## \`/dl\` — hand it off, don't wait
+
+\`\`\`text
+/dl have codex fix the flaky date test in the api project
+\`\`\`
+
+The agent writes a self-contained brief — the child sees none of your conversation — starts a new session in that directory on that engine, and gets a receipt back immediately:
+
+\`\`\`markdown
+Delegated **Fix flaky date test** to codex in \`/Users/me/work/api\` — [open session](/project?cwd=…&sessionId=…)
+\`\`\`
+
+Then you carry on. The child runs like any other session and shows up unread in your recent sessions when it finishes; open the link any time to watch it or take over. Later:
+
+\`\`\`text
+how did that delegated task go?
+\`\`\`
+
+The agent finds the receipt — in this conversation, or through \`/ss\` from any other — checks the child, and reports \`running\`, \`done\`, \`failed\` or \`incomplete\` (stopped or interrupted; open it and continue), with a summary of its last reply.
+
+## Where it fits next to subagents
+
+For parallel work inside one repository, Claude's own subagents are still the right tool — and \`/dl\` tells the agent so. \`/dl\` is for everything else: another directory, another engine, and a session you can open and take over rather than a read-only transcript.
+
+## Try it
+
+Update Cockpit, then type \`/ss\` with whatever you remember about an old conversation — or \`/dl\` something you'd rather not wait for. Details in the [Skills](/en/docs/agent/skills/) docs.
+
+---
+
+**Try it:** \`npm i -g @surething/cockpit\` · [GitHub](https://github.com/Surething-io/cockpit) · [Try Online](/try)`,
+      },
+      zh: {
+        title: '/ss 一句话找回会话,/dl 派出去不用等',
+        description:
+          'OpenCockpit 新增两个内置命令。`/ss` 用一句话在所有项目、所有引擎、全部历史里找回过去的会话;`/dl` 把子任务派给任意目录、任意引擎的新会话,立即返回,之后再问进展。',
+        readingTime: '阅读约 3 分钟',
+        body: `OpenCockpit 用得越久,有两件事越麻烦。你记得*聊过*某件事 ——「那次把 CSRF 问题捋清楚的会话」—— 但不记得是哪个项目、哪个引擎、哪一周。另一件是做到一半发现有活儿该在别处干 —— 另一个仓库里时好时坏的测试,或者更想交给 Codex 的任务 —— 只能停下来,开个 tab,切目录切引擎,把背景重讲一遍,还得记着回头去看。
+
+这个版本给两件事各加了一个命令。
+
+## \`/ss\` —— 一句话找回会话
+
+\`\`\`text
+/ss 上次把本地接口 CSRF 问题捋清楚的那个会话
+\`\`\`
+
+agent 不会拿这句话原样去搜。它先展开成那次对话里会真实出现的关键词 —— 技术话题中英文都写(\`跨站\` / \`CSRF\`),再加同义词和 AI 回答时会用的说法 —— 然后搜索、读命中片段、自己判断,给出 1–3 个候选:
+
+\`\`\`markdown
+1. **本地接口请求校验** — cockpit · claude · 2026-09-10
+   正是你说的那次 CSRF 讨论,最后定下了修法
+   [Open session](/project?cwd=…&sessionId=…)
+\`\`\`
+
+点链接,Cockpit 切到对应项目,在 Agent 面板打开那个会话。搜索范围是 Cockpit 能读到的全部会话:Claude、Codex、DeepSeek、Kimi、GLM、Ollama,所有项目,不限日期。
+
+## \`/dl\` —— 派出去,不用等
+
+\`\`\`text
+/dl 让 codex 去 api 项目里把那个时好时坏的日期测试修掉
+\`\`\`
+
+agent 会写一份自包含的任务说明 —— 子会话看不到你们的对话 —— 在那个目录用那个引擎新开一个会话,并立即拿到回执:
+
+\`\`\`markdown
+Delegated **修复日期测试** to codex in \`/Users/me/work/api\` — [open session](/project?cwd=…&sessionId=…)
+\`\`\`
+
+然后你们接着聊。子会话像普通会话一样运行,结束后在最近会话里显示为未读;想看过程或中途接手,随时点链接。过一阵再问:
+
+\`\`\`text
+刚才委派的那个任务怎么样了?
+\`\`\`
+
+agent 找到回执 —— 在当前对话里,或者在别的会话里通过 \`/ss\` 搜到 —— 查询子会话,告诉你是 \`running\`、\`done\`、\`failed\` 还是 \`incomplete\`(被停止或中断,点进去继续即可),并总结它的最后一条回复。
+
+## 和 subagent 怎么分工
+
+同一个仓库里的并行分工,Claude 自带的 subagent 仍然是最合适的工具,\`/dl\` 的说明里也会这样提示 agent。\`/dl\` 负责剩下的:别的目录、别的引擎,以及一个你能打开、能接手的会话,而不是一份只读记录。
+
+## 试一下
+
+更新 Cockpit,输入 \`/ss\` 加一句你还记得的描述;或者用 \`/dl\` 把手边不想等的事派出去。细节见 [Skills](/zh/docs/agent/skills/) 文档。
+
+---
+
+**试一下:** \`npm i -g @surething/cockpit\` · [GitHub](https://github.com/Surething-io/cockpit) · [在线体验](/try)`,
+      },
+    },
+  },
+  {
     slug: 'html-apps-that-run-bash',
     date: '2026-07-18',
     keywords: [

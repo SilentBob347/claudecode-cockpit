@@ -1,4 +1,4 @@
-**Skills** are short prompts you trigger with `/` in any Agent tab — each one rewires how the AI works on a single reply. OpenCockpit ships **11 built-in Skills** (the `/qa /fx /ex /go /cg /cc /cr` modes, plus `/ap /html /new-branch /skillify`); you can also write your own as `SKILL.md` files and install them the same way. Both flavours live in the same `/` menu.
+**Skills** are short prompts you trigger with `/` in any Agent tab — each one rewires how the AI works on a single reply. OpenCockpit ships **13 built-in Skills** (the `/qa /fx /ex /go /cg /cc /cr` modes, plus `/ap /html /new-branch /skillify /ss /dl`); you can also write your own as `SKILL.md` files and install them the same way. Both flavours live in the same `/` menu.
 
 > Don't confuse these with the slash menu inside **Notes** (the project-notes editor), which is a formatter palette for headings, lists, tables and so on. The chat input only recognises Skills — typing `/` there opens a menu listing the built-ins plus any installed `/skill-name`.
 
@@ -17,8 +17,10 @@
 | **`/html`** | Build an interactive local React app wired to the [bash SDK](/en/docs/agent/html-apps/) | ❌ | ✅ Yes (writes the app) |
 | **`/new-branch`** | Cut a clean branch off the latest `origin/main` | ❌ | ❌ (git only) |
 | **`/skillify`** | Distil this conversation's workflow into a reusable Skill | ❌ | ✅ Yes (writes the SKILL.md) |
+| **`/ss`** | Find a past session — any project, engine or date — from one sentence | ❌ | ❌ (search only) |
+| **`/dl`** | Delegate a sub-task to a new session in any directory, on any engine, without waiting | ❌ | ❌ (the child session does the work) |
 
-The first seven are *modes* — they change how the AI works for one reply — and each gets a section below. The last four are one-shot jobs; their SKILL.md carries the full instructions, so there is nothing to configure.
+The first seven are *modes* — they change how the AI works for one reply — and each gets a section below. The last six are one-shot jobs; their SKILL.md carries the full instructions, so there is nothing to configure. `/ss` and `/dl` also get short sections below, since they work across sessions.
 
 ## `/qa` — Clarify before changing anything
 
@@ -120,6 +122,37 @@ Use when a PR is done and you want one complete review pass — both static corr
 
 It's a self-contained methodology with no external tooling; trivial changes skip the dynamic track and get a static-only report. Typically paired with [`/go`](#go-land-the-change) — `/go` lands the change, `/cr` does the quality pass.
 
+## `/ss` — Find a past session
+
+Use when you remember what a conversation was about, but not which project, engine or day it happened in.
+
+```text
+/ss the session where we discussed CSRF on the local API
+```
+
+The AI doesn't search your sentence verbatim. It expands it into a few keywords (both languages for technical topics, plus synonyms), searches every session Cockpit can read — all projects, all engines (Claude, Codex, DeepSeek, Kimi, GLM, Ollama), all dates — reads the matching snippets, and replies with 1–3 candidates. Each candidate carries a session link: click it and Cockpit switches to that project and opens the session in the Agent panel.
+
+Under the hood Cockpit keeps a text-only copy of each session's prompts and replies — no tool output, system reminders or images — under `<data-dir>/search-corpus`, updated incrementally, and searches it with ripgrep, so short Chinese words like `快照` match too. Subagent transcripts are not included. The first search on a machine can take a few seconds while that copy is built. Endpoint: `GET /api/sessions/search`.
+
+## `/dl` — Delegate without waiting
+
+Use when a piece of work belongs in another directory, suits another engine, or simply shouldn't block the conversation you're in.
+
+```text
+/dl have codex fix the flaky date test in the api project
+```
+
+The AI writes a self-contained brief (the child sees none of your conversation), starts a brand-new session in the target directory on the chosen engine, and gets a receipt back at once — engine, directory, session id, link. It repeats the receipt in its reply and carries on. The child runs on its own like any other session; open the link any time to watch it or take over.
+
+Later, ask "how did that delegated task go?". The AI finds the receipt — in this conversation, or through the `/ss` flow — and checks the child: `running`, `done`, `failed`, or `incomplete` (stopped or interrupted; open it and continue), plus its last reply.
+
+- **Nothing is stored server-side.** The receipt in the parent conversation is the record; status is read from the child engine's own transcript.
+- **Engines:** `claude` (default), `codex`, `deepseek`, `kimi`, `glm`, `ollama`. The target engine must already be configured; errors like a missing directory come back immediately.
+- **Concurrency cap:** at most 4 delegated sessions run at once by default (`COCKPIT_DELEGATE_MAX`, see the [CLI reference](/en/docs/reference/cli/#environment-variables)). Past the cap the request is rejected, not queued.
+- **Not a subagent replacement.** For parallel work inside the same repository, Claude's own subagents are usually the better tool. `/dl` is for other directories, other engines, and sessions you can open and take over.
+
+Endpoints: `POST /api/sessions/delegate`, `GET /api/sessions/status`.
+
 ## Pattern: chain modes
 
 A typical end-to-end task chains modes:
@@ -140,8 +173,10 @@ The right entry point depends on what you have:
 - If you want analysis without interruption → `/ex`
 - If the plan is ready → `/go`
 - If a change is done and needs review → `/cr`
+- If you need an earlier conversation back → `/ss`
+- If the work belongs in another project or on another engine → `/dl`
 
-> The 11 built-in Skills above are the complete set Cockpit ships. For repeated workflows of your own, see [Custom Skills](#custom-skills) below — they show up in the same `/` menu as `/skill-name`.
+> The 13 built-in Skills above are the complete set Cockpit ships. For repeated workflows of your own, see [Custom Skills](#custom-skills) below — they show up in the same `/` menu as `/skill-name`.
 
 ## Custom Skills
 

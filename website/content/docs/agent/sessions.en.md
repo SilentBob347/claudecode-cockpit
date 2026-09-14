@@ -38,6 +38,8 @@ Click the **grid icon at the top of the left sidebar** to open the Session Brows
 
 Note: the browser is **hierarchical** (project → session), not a flat fuzzy search across every session. If you don't remember which project a conversation lived in, filter by project first, then expand.
 
+To search *inside* conversations instead — every project, engine and date — ask the agent with [`/ss`](/en/docs/agent/skills/). It replies with session links that open the session directly.
+
 `Enter` / clicking a session jumps to its tab (creating one if needed).
 
 ## Forking a session

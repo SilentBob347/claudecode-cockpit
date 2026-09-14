@@ -122,6 +122,8 @@ Equivalent to `npm install -g @surething/cockpit@latest`. See [`cockpit update`]
 | `COCKPIT_SNAPSHOT_KEEP_DAYS` | How many days of [tool-call snapshots](/en/docs/agent/snapshots/) to keep. Default `7`. |
 | `COCKPIT_SNAPSHOT_REPO_TTL_DAYS` | Days of inactivity before a project's whole snapshot repo is removed. Default `30`. |
 | `COCKPIT_SNAPSHOT_MAX_FILE_KB` | Per-file size cap for snapshot tracking, in KB. Default `2048` (2 MB). |
+| `COCKPIT_ALLOWED_HOSTS` | Comma-separated extra host names (no scheme, no port) that requests arriving over loopback may use in their `Host` header — e.g. the public hostname of a token-less tunnel. See *Host and Origin check* below. |
+| `COCKPIT_DELEGATE_MAX` | Max delegated sessions ([`/dl`](/en/docs/agent/skills/)) running at once. Default `4`; must be ≥ 1. Requests past the cap are rejected. |
 
 #### Data directory & running a second instance
 
@@ -158,6 +160,25 @@ Pair it with `COCKPIT_HOST=0.0.0.0` when sharing over the network:
 ```bash
 COCKPIT_HOST=0.0.0.0 cockpit --token my-secret-value
 ```
+
+#### Host and Origin check
+
+Independent of the token, every HTTP request and WebSocket upgrade first passes a Host / Origin check. It blocks two ways a web page open in your browser could reach a local Cockpit — DNS rebinding and cross-site request forgery. A rejected request gets `403 Forbidden`.
+
+- **Requests arriving over loopback must address Cockpit by an allowed host name:** `localhost` (or `*.localhost`), a `127.x.x.x` / `::1` address, this machine's hostname (and `<hostname>.local`), the `COCKPIT_HOST` value when it is a specific address, or a name in `COCKPIT_ALLOWED_HOSTS`. Requests from other machines (LAN, with `COCKPIT_HOST=0.0.0.0`) are not host-checked.
+- **State-changing requests (anything but `GET` / `HEAD` / `OPTIONS`) and WebSocket upgrades that carry an `Origin` header must be same-origin with `Host`.** Browsers always send `Origin` on these; `curl`, the CLI and skills don't, so they're unaffected.
+
+**Tunnels (ngrok, cloudflared, …) — behaviour change.** A tunnel agent on the same machine connects over loopback while `Host` carries the tunnel's public hostname, so its requests are now rejected unless you either:
+
+- list that hostname in `COCKPIT_ALLOWED_HOSTS`, or
+- run with a token — in token mode, requests carrying a forwarding header (`X-Forwarded-For`, `X-Real-IP` or `Forwarded`) are left to the token gate, which then requires the token.
+
+```bash
+COCKPIT_ALLOWED_HOSTS=my-box.ngrok.app cockpit     # no token: anyone with the URL gets in
+cockpit --token my-secret-value                    # token mode: the tunnel must forward X-Forwarded-For
+```
+
+Keep the tunnel's original `Host` header. If it is rewritten to `localhost`, the browser's `Origin` no longer matches and POSTs and WebSockets get 403.
 
 ## cockpit browser
 

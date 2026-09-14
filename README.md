@@ -45,7 +45,7 @@ Cockpit is the instrument panel. It does **not** replace Claude Code; it stands 
 | Stuck on one model | **6 engines side by side** in tabs: Claude (default), Codex, DeepSeek, GLM, Kimi, local Ollama — each its own session |
 | One session at a time, terminal chaos at 3+ projects | **Multi-project tabs**, parallel agent sessions, red-dot inbox, desktop notifications |
 | Image attachments are awkward | Drop / paste images straight into chat |
-| "What was I debugging yesterday?" | Cmd+K cross-project session browser, pinning, forking |
+| "What was I debugging yesterday?" | Cmd+K cross-project session browser, pinning, forking; `/ss` finds any past session from one sentence |
 | Agent can't reach your browser / DB | **Smart Bubbles**: Chrome, PostgreSQL, MySQL, Redis — drivable by the agent |
 | Reading an unfamiliar repo means a 90-min file-tree scavenger hunt | **Code Map** chip view — caller / callee pins, click to walk the call graph |
 | Reviewing AI output is friction | **LAN-shared review pages**, line-level comments, send any comment back as AI context |
@@ -97,6 +97,8 @@ An honest snapshot as of July 2026 — each tool wins somewhere. Spotted an erro
 - Default engine powered by the **official Claude Agent SDK** — zero extra setup
 - **Multi-project concurrent sessions** with desktop notifications and red-dot badges
 - Session **pinning, forking**, cross-project session browser (Cmd+K)
+- `/ss` — **find any past session** (any project, engine or date) from a one-line description; the reply links straight to it
+- `/dl` — **delegate a sub-task** to a new session in another directory and/or on another engine, without waiting; ask later how it went
 - **Per-tool-call snapshots** — every file-touching tool call is snapshotted (shadow git, fully local); review each reply's changes as a git-history-style timeline, including what `Bash` did
 - `!command` prefix to run shell from chat — output piped back as context
 - Image attachments, code references, token usage tracking
