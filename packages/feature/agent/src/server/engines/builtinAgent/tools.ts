@@ -280,7 +280,7 @@ export function createTools(context: AgentContext) {
             encoding: 'utf-8',
             timeout: timeout ?? 60000,
             maxBuffer: 10 * 1024 * 1024,
-            env: sanitizedSpawnEnv({ FORCE_COLOR: '0', CI: '1' }),
+            env: sanitizedSpawnEnv({ FORCE_COLOR: '0', CI: '1', COCKPIT_RUN_ID: context.runId }),
           });
 
           // Empty stdout is the #1 source of model confusion — an empty

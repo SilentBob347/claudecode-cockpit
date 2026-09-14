@@ -1,0 +1,57 @@
+---
+name: dl
+description: "Delegate a sub-task to a new Cockpit session in any project on any engine, without waiting; check on it later."
+argument-hint: "<what to delegate, and optionally which engine / project>"
+---
+
+Hand a sub-task to a brand-new session that runs on its own — in another project directory and/or on another engine (codex, deepseek, kimi, glm, ollama, claude). You do NOT wait for it. You get a receipt back at once; the child notifies the user when it finishes.
+
+Use it when the work belongs in another directory, suits another engine, or simply should not block this conversation. For parallel work inside this same repository, your own subagents are usually the better tool.
+
+## 1. Delegate
+
+Decide: target `cwd` (absolute project directory), `engine`, a short `title`, and the task. Write the task as a self-contained brief — the child sees none of this conversation. Put anything longer than a line or two in a brief file, so no JSON escaping is involved:
+
+```bash
+BRIEF=$(mktemp /tmp/cockpit-brief.XXXXXX)
+cat > "$BRIEF" <<'EOF_BRIEF'
+<goal, context the child needs, constraints, what "done" looks like>
+EOF_BRIEF
+
+curl -sS --fail-with-body -X POST "{{BASE_URL}}/api/sessions/delegate" \
+  -H "Content-Type: application/json" \
+  -H "x-cockpit-run-id: $COCKPIT_RUN_ID" \
+  --data-binary @- <<EOF_JSON
+{"cwd": "/abs/target/project", "engine": "codex", "title": "<short label>", "briefPath": "$BRIEF"}
+EOF_JSON
+```
+
+- `engine` defaults to `claude`; `model` is optional
+- For a one-liner you may send `"prompt": "..."` instead of `briefPath` (escape `"` and `\`)
+- Do not delete the brief file — the child reads it after you return
+- A 400 names the problem (missing directory, unconfigured engine, too many delegated sessions running) — report it, do not retry blindly
+
+The receipt: `{ cwd, engine, model?, sessionId, link, title, createdAt, parent? }`.
+
+## 2. Reply — always restate the receipt
+
+The receipt is the ONLY record of this delegation. Tool output is not searchable later, so repeat it in your reply text:
+
+```markdown
+Delegated **<title>** to <engine> in `<cwd>` — [open session](<link>)
+```
+
+Use the `link` exactly as returned.
+
+## 3. When the user asks how it went
+
+1. Find the receipt: first in this conversation; otherwise search past sessions with the `/ss` flow (query the title or topic — your earlier reply and the child session itself are both indexed)
+2. Check it:
+
+```bash
+curl -sS --fail-with-body --get "{{BASE_URL}}/api/sessions/status" \
+  --data-urlencode "cwd=<cwd>" --data-urlencode "sessionId=<sessionId>"
+```
+
+3. Report `status` — `running`, `done` (the last turn finished normally), `failed` (the engine recorded an error) or `incomplete` (stopped, interrupted or never finished; the user can open it and continue) — summarize `lastReply`, and give the `link`.
+   `lastReply` is cut to 4000 characters; when `lastReplyTruncated` is true and you need all of it, repeat the call with `--data-urlencode "full=1"`.

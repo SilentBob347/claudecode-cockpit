@@ -97,12 +97,18 @@ export function planPermission(
 }
 
 /** Build claude SDK options for one attempt. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function buildClaudeOptions(ctx: RunCtx, independent: boolean): BuildSdkOptions {
   const { permissionMode } = ctx.params;
   const isPlan = permissionMode === 'plan';
   const model = resolveClaudeModel(ctx);
   const effort = resolveClaudeEffort(ctx);
   const settings = resolveClaudeSettings(ctx);
+  const presetSessionId =
+    typeof ctx.params.newSessionId === 'string' && UUID_RE.test(ctx.params.newSessionId)
+      ? ctx.params.newSessionId
+      : undefined;
   return (abort, resume, isRetry) => ({
     // Independent task: resume is what makes the CLI load the transcript, so the first
     // attempt drops it and names the session explicitly instead — same file on disk, empty
@@ -110,7 +116,13 @@ function buildClaudeOptions(ctx: RunCtx, independent: boolean): BuildSdkOptions 
     // turn (the history is stashed away), which is exactly what the retry needs.
     ...(independent && !isRetry
       ? { sessionId: resume }
-      : resume && { resume }),
+      : resume
+        ? { resume }
+        // Brand-new session with a caller-chosen id (session delegation). The SDK rejects
+        // `sessionId` together with `resume`, and a compaction retry always resumes.
+        : !isRetry && presetSessionId
+          ? { sessionId: presetSessionId }
+          : {}),
     ...(ctx.cwd && { cwd: ctx.cwd }),
     ...(model ? { model } : {}),
     ...(effort ? { effort } : {}),
@@ -133,7 +145,8 @@ function buildClaudeOptions(ctx: RunCtx, independent: boolean): BuildSdkOptions 
     abortController: abort,
     // env is ALWAYS passed: without it the SDK inherits process.env verbatim,
     // handing the agent this server's NODE_ENV=production. See sanitizedSpawnEnv.
-    env: sanitizedSpawnEnv({}),
+    // COCKPIT_RUN_ID lets a skill's curl identify the session it runs in (delegation parent).
+    env: sanitizedSpawnEnv({ COCKPIT_RUN_ID: ctx.currentKey() }),
   });
 }
 

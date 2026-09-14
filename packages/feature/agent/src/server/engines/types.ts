@@ -38,6 +38,11 @@ export interface DispatchParams {
   //  - codex stashes the rollout and leaves a session_meta-only stub for the resumed turn
   //    (shared/noHistoryRollout.ts).
   noHistory?: boolean;
+  // Brand-new session with a caller-chosen id (session delegation). Unlike `sessionId`, which
+  // means "resume this existing session", this names the session about to be created so the
+  // caller can link to it before the engine starts. claude passes it to the SDK `sessionId`
+  // option; built-in engines already use `runId` as the session id; codex assigns its own.
+  newSessionId?: string;
 }
 
 /** Dispatch result. The run is detached (fire-and-forget); on success the caller gets the

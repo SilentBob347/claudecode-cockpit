@@ -51,6 +51,8 @@ export interface CockpitConfigData {
   readonly snapshotMaxFileKb: number
   /** Days of Ollama chat session history to keep before auto-cleanup (COCKPIT_SESSION_KEEP_DAYS) */
   readonly sessionKeepDays: number
+  /** Max delegated sessions (/api/sessions/delegate) running at once (COCKPIT_DELEGATE_MAX) */
+  readonly delegateMaxConcurrent: number
 }
 
 const envConfig = Config.literal("dev", "prod")("COCKPIT_ENV").pipe(
@@ -102,6 +104,11 @@ const sessionKeepDaysConfig = Config.integer("COCKPIT_SESSION_KEEP_DAYS").pipe(
   Config.withDefault(30)
 )
 
+const delegateMaxConcurrentConfig = Config.integer("COCKPIT_DELEGATE_MAX").pipe(
+  Config.validate({ message: "COCKPIT_DELEGATE_MAX must be >= 1", validation: (n) => n >= 1 }),
+  Config.withDefault(4)
+)
+
 
 // ─────────────────────────────────────────────────────────
 // Composition
@@ -119,6 +126,7 @@ export const CockpitConfig: Effect.Effect<CockpitConfigData> = Effect.gen(
     const snapshotRepoTtlDays = yield* snapshotRepoTtlDaysConfig
     const snapshotMaxFileKb = yield* snapshotMaxFileKbConfig
     const sessionKeepDays = yield* sessionKeepDaysConfig
+    const delegateMaxConcurrent = yield* delegateMaxConcurrentConfig
 
     // cockpitDir: lazy resolution to avoid Node-only os.homedir at module eval.
     // Use process.env.HOME / USERPROFILE instead of os.homedir() — zero
@@ -156,6 +164,7 @@ export const CockpitConfig: Effect.Effect<CockpitConfigData> = Effect.gen(
       snapshotRepoTtlDays,
       snapshotMaxFileKb,
       sessionKeepDays,
+      delegateMaxConcurrent,
     } satisfies CockpitConfigData
   }
 ).pipe(Effect.orDie) // Treat Config validation failures as defects (exit at startup)

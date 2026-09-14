@@ -744,7 +744,8 @@ async function runCodexAppServer(ctx: RunCtx): Promise<void> {
   let client: CodexAppServerClient;
   try {
     client = CodexAppServerClient.start({
-      env: sanitizedSpawnEnv({}),
+      // COCKPIT_RUN_ID lets a skill's curl identify the session it runs in (delegation parent).
+      env: sanitizedSpawnEnv({ COCKPIT_RUN_ID: ctx.currentKey() }),
       ...(ctx.cwd ? { cwd: ctx.cwd } : {}),
       onNotification,
       // Permitted `console.error` under EFFECT.md §0 (subprocess IPC adapter gateway).
@@ -762,6 +763,19 @@ async function runCodexAppServer(ctx: RunCtx): Promise<void> {
     throw error;
   }
 
+  // Startup cancellation. Until `turn/start` resolves there is no turn to interrupt, so an
+  // abort (a delegation that timed out waiting for the thread id, or a user stop) would
+  // otherwise leave initialize / thread/* pending on a live child — and a late reply would
+  // still go on to start the turn. Disposing rejects every pending request and kills the
+  // child. The listener is removed once the turn exists: from then on an abort must keep
+  // the connection alive so `interruptTurns` can stop the turn by name.
+  const abortStartup = () => client.dispose(true);
+  if (ctx.signal.aborted) abortStartup();
+  else ctx.signal.addEventListener('abort', abortStartup, { once: true });
+  const assertNotAborted = () => {
+    if (ctx.signal.aborted) throw new Error('codex run aborted during startup');
+  };
+
   try {
     await client.request('initialize', {
       clientInfo: { name: 'cockpit', title: 'Cockpit', version: '1' },
@@ -770,6 +784,7 @@ async function runCodexAppServer(ctx: RunCtx): Promise<void> {
     // Params-less, and it must land before any thread/* call.
     client.notify('initialized');
 
+    assertNotAborted();
     const params = codexThreadParams(ctx);
     /**
      * A stale thread id is recoverable: the session may have been archived, its
@@ -841,10 +856,12 @@ async function runCodexAppServer(ctx: RunCtx): Promise<void> {
       });
     }
 
+    assertNotAborted();
     const startedTurn = await client.request('turn/start', {
       threadId,
       input: codexTurnInput(ctx.prompt ?? '', imageFiles),
     });
+    ctx.signal.removeEventListener('abort', abortStartup);
     // Needed to stop this turn by name later; see `interruptTurns`.
     const turnId = (startedTurn.turn as { id?: string } | undefined)?.id;
     if (turnId) shim.noteOwnTurn(threadId, turnId);
@@ -869,6 +886,7 @@ async function runCodexAppServer(ctx: RunCtx): Promise<void> {
     // race to explain what happened.
     if (closedReason && !ctx.signal.aborted && !terminal) throw closedReason;
   } finally {
+    ctx.signal.removeEventListener('abort', abortStartup);
     client.dispose();
     cleanupImageFiles(imageFiles);
   }

@@ -381,7 +381,7 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
       }
       // Request from inside an iframe to open or switch a project (worktree switch, session open, etc.)
       if (event.data?.type === 'OPEN_PROJECT' && event.data?.cwd) {
-        const { cwd, sessionId } = event.data;
+        const { cwd, sessionId, switchToAgent } = event.data;
         const targetSessionId = sessionId || '';
         touchBeforeGlobalNavigation(cwd, targetSessionId || undefined);
         projectSessionIdsRef.current.set(cwd, targetSessionId);
@@ -392,13 +392,13 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
           if (targetSessionId) {
             const iframe = iframeRefs.current.get(cwd);
             if (iframe?.contentWindow) {
-              iframe.contentWindow.postMessage({ type: 'SWITCH_SESSION', sessionId: targetSessionId }, '*');
+              iframe.contentWindow.postMessage({ type: 'SWITCH_SESSION', sessionId: targetSessionId, ...(switchToAgent ? { switchToAgent: true } : {}) }, '*');
             } else {
               // Project is in the list but its iframe was never mounted (lazy load):
               // postMessage would hit nothing and the first mount would default to the
               // most recent session. Freeze the sessionId for the URL so getProjectUrl
               // carries it on mount via the deterministic initialSessionId path.
-              initialSessionIdsRef.current.set(cwd, { sessionId: targetSessionId });
+              initialSessionIdsRef.current.set(cwd, { sessionId: targetSessionId, ...(switchToAgent ? { switchToAgent: true } : {}) });
             }
           }
           if (existingIndex !== activeIndex) {
@@ -414,7 +414,7 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
           setActiveIndex(newActiveIndex);
           saveProjects(newProjects, newActiveIndex, collapsed);
           if (targetSessionId) {
-            initialSessionIdsRef.current.set(cwd, { sessionId: targetSessionId });
+            initialSessionIdsRef.current.set(cwd, { sessionId: targetSessionId, ...(switchToAgent ? { switchToAgent: true } : {}) });
           }
         }
         updateUrl(cwd, targetSessionId);

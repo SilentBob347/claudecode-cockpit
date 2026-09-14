@@ -15,4 +15,6 @@ export interface TodoItem {
 export interface AgentContext {
   cwd: string;
   todos: TodoItem[];
+  /** Run registry key of this turn; exported to shell commands as COCKPIT_RUN_ID. */
+  runId: string;
 }

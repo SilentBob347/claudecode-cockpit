@@ -21,6 +21,7 @@
  * that is indistinguishable from genuine localhost and cannot be told apart.
  */
 import { timingSafeEqual } from 'crypto';
+import { hostname as osHostname } from 'os';
 
 export const COOKIE_NAME = 'cockpit_token';
 const QUERY_KEY = 'token';
@@ -145,4 +146,114 @@ export function checkAccess(input: AccessInput): AccessDecision {
   }
 
   return { action: 'deny' };
+}
+
+// ============================================================================
+// Origin / Host gate — independent of token mode, always on.
+//
+// Two browser-borne attacks reach a local-only server even with no token:
+//
+//   1. DNS rebinding: an attacker page on evil.example re-resolves its own name
+//      to 127.0.0.1. The browser then treats our responses as same-origin to the
+//      attacker and lets it READ them (session transcripts, search results).
+//      The only tell is the Host header, which still says evil.example.
+//   2. Cross-site request forgery: any website can fire a "simple" POST
+//      (text/plain body, no preflight) at http://127.0.0.1:<port>/api/... and
+//      `parseJsonRaw` happily parses it — e.g. dispatching a bypassPermissions
+//      agent run in an arbitrary cwd. Browsers always attach `Origin` to such
+//      requests; curl, the cockpit CLI and skills never do.
+//
+// Rules (KISS):
+//   - A LOOPBACK peer must address us by a loopback name, this machine's
+//     hostname, or COCKPIT_ALLOWED_HOSTS. A forwarding header does NOT exempt
+//     it: the header is client-controlled, and a DNS-rebound page can add it to
+//     a same-origin request. It only defers to the token gate when token mode
+//     is on (checkAccess then makes every forwarded request authenticate, and a
+//     rebound page holds no cookie/bearer for this host). Tunnels without a
+//     token must list their hostname in COCKPIT_ALLOWED_HOSTS.
+//     Non-loopback peers (LAN with COCKPIT_HOST=0.0.0.0) are not checked here.
+//   - A state-changing request (non GET/HEAD/OPTIONS) or a WebSocket upgrade
+//     that carries an Origin must be same-origin with Host. No Origin → pass.
+// ============================================================================
+
+export interface OriginGateInput {
+  method: string | undefined;
+  host: string | undefined;
+  origin: string | undefined;
+  remoteAddr: string | undefined;
+  /** Presence of any forwarding header → relayed by a proxy/tunnel. */
+  forwarded: string | undefined;
+  isWs: boolean;
+}
+
+export type OriginGateDecision = { action: 'pass' } | { action: 'deny'; reason: string };
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** Hostname part of a Host header value: strips the port, keeps IPv6 brackets off. */
+export function hostnameOfHostHeader(host: string | undefined): string | null {
+  if (!host) return null;
+  const h = host.trim().toLowerCase();
+  if (!h) return null;
+  if (h.startsWith('[')) {
+    const end = h.indexOf(']');
+    return end > 0 ? h.slice(1, end) : null;
+  }
+  const colon = h.lastIndexOf(':');
+  return colon >= 0 ? h.slice(0, colon) : h;
+}
+
+function isLoopbackHostname(name: string): boolean {
+  return (
+    name === 'localhost' ||
+    name.endsWith('.localhost') ||
+    name === '::1' ||
+    /^127(\.\d{1,3}){3}$/.test(name)
+  );
+}
+
+function allowedExtraHostnames(): Set<string> {
+  const out = new Set<string>();
+  const add = (v: string | undefined) => {
+    const n = v?.trim().toLowerCase();
+    if (n) out.add(n);
+  };
+  try {
+    const hn = osHostname();
+    add(hn);
+    if (hn && !hn.includes('.')) add(`${hn}.local`);
+  } catch {
+    // os.hostname() never throws in practice; stay open to it.
+  }
+  const bind = process.env.COCKPIT_HOST;
+  if (bind && bind !== '0.0.0.0' && bind !== '::') add(bind);
+  for (const part of (process.env.COCKPIT_ALLOWED_HOSTS || '').split(',')) add(part);
+  return out;
+}
+
+export function checkOriginGate(input: OriginGateInput): OriginGateDecision {
+  if (isLoopbackAddr(input.remoteAddr)) {
+    const name = hostnameOfHostHeader(input.host);
+    const hostAllowed = !!name && (isLoopbackHostname(name) || allowedExtraHostnames().has(name));
+    const deferToTokenGate = Boolean(input.forwarded) && tokenEnabled();
+    if (!hostAllowed && !deferToTokenGate) {
+      return { action: 'deny', reason: 'host not allowed' };
+    }
+  }
+
+  const mutating = input.isWs || !SAFE_METHODS.has((input.method || 'GET').toUpperCase());
+  if (mutating && input.origin !== undefined) {
+    if (!input.host) return { action: 'deny', reason: 'missing host' };
+    let originHost: string;
+    try {
+      originHost = new URL(input.origin).host;
+    } catch {
+      return { action: 'deny', reason: 'unparseable origin' };
+    }
+    if (!originHost || originHost.toLowerCase() !== input.host.trim().toLowerCase()) {
+      return { action: 'deny', reason: 'cross-origin' };
+    }
+  }
+
+  return { action: 'pass' };
 }

@@ -74,7 +74,7 @@ export async function runBuiltinAgent(ctx: RunCtx, config: BuiltinAgentConfig): 
 
   emit(`data: ${JSON.stringify({ type: 'system', subtype: 'init', session_id: sid })}\n\n`);
 
-  const context: AgentContext = { cwd, todos: [] };
+  const context: AgentContext = { cwd, todos: [], runId: sid };
   const languageModel = await config.createModel(model);
   const result = streamText({
     model: languageModel,

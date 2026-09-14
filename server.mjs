@@ -418,7 +418,27 @@ app.prepare().then(async () => {
     };
   };
 
+  // Origin / Host gate (DNS rebinding + CSRF) — main server only, before the
+  // token gate. See checkOriginGate in src/lib/auth.ts.
+  const originGateInput = (req, isWs) => ({
+    method: req.method,
+    host: req.headers?.host,
+    origin: req.headers?.origin,
+    remoteAddr: req.socket?.remoteAddress,
+    forwarded:
+      req.headers?.['x-forwarded-for'] ||
+      req.headers?.['x-real-ip'] ||
+      req.headers?.['forwarded'],
+    isWs,
+  });
+
   const server = createServer(async (req, res) => {
+    const originDecision = auth.checkOriginGate(originGateInput(req, false));
+    if (originDecision.action !== 'pass') {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(`403 Forbidden - ${originDecision.reason}\n`);
+      return;
+    }
     if (applyHttpGate(req, res)) return;
     markLocalRequest(req);
     if (req.url?.startsWith('/api/')) gzipJsonResponse(req, res);
@@ -441,6 +461,11 @@ app.prepare().then(async () => {
   });
 
   server.on('upgrade', (req, socket, head) => {
+    if (auth.checkOriginGate(originGateInput(req, true)).action !== 'pass') {
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     // Cookie / ?token ride the same-origin upgrade → gate WS too.
     if (auth.checkAccess(gateInput(req, true)).action !== 'pass') {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');

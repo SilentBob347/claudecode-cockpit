@@ -262,6 +262,17 @@ export function getRunSessionId(key: string): string | null {
   return registry.get(key)?.sessionId ?? null;
 }
 
+/**
+ * cwd + real sessionId of a run, by any of its keys. Used to resolve the session a
+ * skill's curl runs in (COCKPIT_RUN_ID) — that run is necessarily live while its own
+ * tool call executes, so the grace window never gets in the way.
+ */
+export function getRunInfo(key: string): { cwd: string; sessionId: string | null } | null {
+  const r = registry.get(key);
+  if (!r) return null;
+  return { cwd: r.cwd, sessionId: r.sessionId ?? null };
+}
+
 /** Register the detached run's abort fn so the stop endpoint can cancel it. */
 export function setRunAbort(key: string, abort: () => void): void {
   const r = registry.get(key);

@@ -11,6 +11,7 @@
     "./htmlBashSdk": "./src/htmlBashSdk.ts",
     "./homePath": "./src/homePath.ts",
     "./outputProgress": "./src/outputProgress.ts",
-    "./encodePath": "./src/encodePath.ts"
+    "./encodePath": "./src/encodePath.ts",
+    "./sessionLink": "./src/sessionLink.ts"
   }
 }

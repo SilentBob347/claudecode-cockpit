@@ -55,6 +55,8 @@ export interface ProjectChangePayload {
 export interface OpenProjectPayload {
   readonly cwd: string
   readonly sessionId?: string
+  /** Also bring the target project's Agent (chat) panel to front — set by session links. */
+  readonly switchToAgent?: boolean
 }
 
 export interface SessionCompletePayload {

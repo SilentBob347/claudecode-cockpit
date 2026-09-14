@@ -31,6 +31,10 @@ const appServer = vi.hoisted(() => {
     /** Exec-shaped events replayed as soon as the turn is accepted. */
     script: [] as Array<Record<string, unknown>>,
     disposed: 0,
+    /** A request method that never answers on its own (a hung startup step). */
+    hangOn: null as string | null,
+    /** Rejecters of hung requests; a real dispose fails every pending request. */
+    hung: [] as Array<(err: Error) => void>,
     feed(event: Record<string, unknown>) {
       // `thread.started` is no longer on the wire — the runner synthesises it
       // from the thread/start result so the rollout baseline is sampled before
@@ -55,6 +59,8 @@ const appServer = vi.hoisted(() => {
       state.onTurnStart = null;
       state.script = [];
       state.disposed = 0;
+      state.hangOn = null;
+      state.hung = [];
     },
   };
   return state;
@@ -67,6 +73,11 @@ vi.mock('./codexAppServer/client', () => ({
       return {
         async request(method: string, params: Record<string, unknown>) {
           appServer.requests.push({ method, params });
+          if (method === appServer.hangOn) {
+            return new Promise((_resolve, reject) => {
+              appServer.hung.push(reject);
+            });
+          }
           if (method === 'thread/resume' && appServer.resumeThrows) throw new Error('no such thread');
           if (method === 'thread/resume' || method === 'thread/start') {
             // The real protocol returns the rollout's path here, and the engine
@@ -85,6 +96,7 @@ vi.mock('./codexAppServer/client', () => ({
         notify() {},
         dispose() {
           appServer.disposed += 1;
+          for (const reject of appServer.hung.splice(0)) reject(new Error('codex app-server client disposed'));
         },
       };
     },
@@ -166,6 +178,30 @@ describe('codex mode routing', () => {
     // Synthesised from the thread/start result, not awaited from a notification.
     expect(rekey).toHaveBeenCalledWith('sdk-thread');
     expect(appServer.disposed).toBe(1);
+  });
+
+  it('an abort during startup disposes the child and never starts the turn', async () => {
+    const ac = new AbortController();
+    appServer.hangOn = 'thread/start';
+    const run = codexSpec.runner.run(ctx({ signal: ac.signal }) as never);
+    for (let i = 0; i < 50 && !appServer.requests.some((r) => r.method === 'thread/start'); i += 1) {
+      await new Promise((r) => setImmediate(r));
+    }
+    expect(appServer.requests.some((r) => r.method === 'thread/start')).toBe(true);
+
+    ac.abort();
+    await expect(run).rejects.toThrow();
+    expect(appServer.disposed).toBeGreaterThanOrEqual(1);
+    expect(appServer.requests.some((r) => r.method === 'turn/start')).toBe(false);
+  });
+
+  it('a startup reply that lands after an abort does not go on to open a thread or turn', async () => {
+    // The mock answers `initialize` even though the client was disposed — the late-reply race.
+    const ac = new AbortController();
+    ac.abort();
+    await expect(codexSpec.runner.run(ctx({ signal: ac.signal }) as never)).rejects.toThrow(/aborted during startup/);
+    expect(appServer.requests.map((r) => r.method)).toEqual(['initialize']);
+    expect(appServer.disposed).toBeGreaterThanOrEqual(1);
   });
 
   it('streams assistant text as deltas the client already knows how to append', async () => {

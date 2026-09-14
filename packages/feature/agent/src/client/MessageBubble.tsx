@@ -15,6 +15,8 @@ import { isMutatingToolName } from '../shared/toolMutation';
 //   - MarkdownRenderer: a generic markdown renderer; candidate for shared-ui.
 // Allowed by MODULES.md as transitional reverse imports.
 import { HtmlPreviewModal, CsvPreviewModal, isMarkdownFile, isHtmlFile, isImageFile, isCsvFile, resolveRelativePath, fetchFileStat } from '@cockpit/feature-explorer';
+import { parseSessionLink } from '@cockpit/shared-utils/sessionLink';
+import { openSessionLink } from './openSessionLink';
 import { MarkdownRenderer } from '@cockpit/shared-ui';
 import { BrowserRuntime } from '@cockpit/effect-runtime';
 import { MdPreviewModal } from './MdPreviewModal';
@@ -380,7 +382,7 @@ const TextPartRow = memo(function TextPartRow({
 }) {
   const { t } = useTranslation();
 
-  const handleLinkClick = useMemo(() => {
+  const handleFileLinkClick = useMemo(() => {
     if (isUser || !onOpenFileLink) return undefined;
 
     /**
@@ -438,6 +440,21 @@ const TextPartRow = memo(function TextPartRow({
       return true;
     };
   }, [cwd, isUser, onOpenFileLink, onPreviewFile, t]);
+
+  // Session links (from /ss, /dl replies) open that project's session; everything else
+  // falls through to the file-link handling above. Not gated on onOpenFileLink: a
+  // session link is clickable in any assistant message.
+  const handleLinkClick = useMemo(() => {
+    if (isUser) return undefined;
+    return (href: string) => {
+      const session = parseSessionLink(href, window.location.origin);
+      if (session) {
+        openSessionLink(session, href);
+        return true;
+      }
+      return handleFileLinkClick ? handleFileLinkClick(href) : false;
+    };
+  }, [isUser, handleFileLinkClick]);
 
   const body = (
     <>

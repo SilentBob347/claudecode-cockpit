@@ -1,0 +1,592 @@
+/**
+ * SessionSearchServiceLive — derived-text corpus + ripgrep.
+ *
+ * Why a corpus: raw transcripts are dominated by tool output, system reminders and
+ * base64 images (measured: 668 MB of claude jsonl → 12 MB of prompt/reply text).
+ * Why ripgrep, not SQLite FTS5: FTS5 cannot match 2-character Chinese words
+ * (unicode61 does not segment CJK; trigram needs ≥3 chars). ripgrep over the small
+ * corpus matches any substring in milliseconds.
+ *
+ * Layout:    <cockpitDir>/search-corpus/<engine>/<sessionId>.txt + manifest.json
+ * Freshness: a session is re-extracted when its source mtime+size fingerprint changes,
+ *            or when its project directory was unknown and has since become resolvable
+ *            (the directory lookup draws on projects.json / state.json / other
+ *            transcripts, none of which change the source fingerprint).
+ *            A corpus file whose source is gone is deleted.
+ * Scope:     top-level sessions only — claude `agent-*.jsonl` sidechains, subagent
+ *            directories and codex sub-agent rollouts are excluded.
+ * Concurrency: syncs are serialised by a semaphore owned by this layer.
+ */
+import { execFile } from "node:child_process"
+import { randomUUID } from "node:crypto"
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
+import { Effect, Either, Layer } from "effect"
+import { rgPath } from "@vscode/ripgrep"
+import { AppError, CockpitConfig, FSError, type FSOp } from "@cockpit/effect-core"
+import {
+  SessionSearchService,
+  type CorpusSyncStats,
+  type SessionSearchHit,
+  type SessionSearchQuery,
+} from "@cockpit/effect-services"
+import {
+  CLAUDE_PROJECTS_DIR,
+  GLOBAL_STATE_FILE,
+  getBuiltinSessionsRoot,
+  listCodexSessions,
+} from "@cockpit/shared-utils"
+import { encodePath } from "@cockpit/shared-utils/encodePath"
+import { buildSessionLink } from "@cockpit/shared-utils/sessionLink"
+import {
+  parseCodexTranscriptFile,
+  parseTranscriptFile,
+} from "../server/api/session/transcriptParsers"
+
+// ─────────────────────────────────────────────────────────
+// Corpus format (pure)
+// ─────────────────────────────────────────────────────────
+
+export const CORPUS_MAGIC = "#cockpit-corpus v1"
+export const HEADER_END = "#---"
+/** renderCorpusText writes a fixed header: magic, engine, sessionId, cwd, title, updatedAt, HEADER_END. */
+export const CORPUS_HEADER_LINES = 7
+export const CORPUS_TITLE_LINE = 5
+
+const BUILTIN_ENGINES = ["ollama", "deepseek", "kimi", "glm"] as const
+const PARSE_CONCURRENCY = 4
+const CWD_PROBE_BYTES = 256 * 1024
+const HEADER_PROBE_BYTES = 8192
+const SNIPPETS_PER_HIT = 3
+const SNIPPET_RADIUS = 120
+/** Permits of the corpus readers-writer lock: a sync takes all of them, a search takes one. */
+const CORPUS_LOCK_PERMITS = 16
+
+export interface CorpusMeta {
+  readonly engine: string
+  readonly sessionId: string
+  readonly cwd: string | null
+  readonly title: string
+  readonly updatedAt: number
+}
+
+export interface CorpusSource {
+  readonly engine: string
+  readonly sessionId: string
+  readonly sourcePath: string
+  /** Known up front for codex (its index carries it); resolved later for the rest. */
+  readonly cwd: string | null
+  /** Encoded-cwd directory name for cwd-sharded stores (claude, built-in engines). */
+  readonly encodedDir: string | null
+}
+
+interface ManifestEntry {
+  readonly fingerprint: string
+  /** '' = parsed but held no searchable text (kept so it is not re-parsed). */
+  readonly corpusPath: string
+  /** Project directory the corpus header was written with; null = unknown. */
+  readonly cwd: string | null
+}
+type Manifest = Record<string, ManifestEntry>
+
+export const renderCorpusText = (
+  meta: CorpusMeta,
+  messages: ReadonlyArray<{ role: string; content: string }>
+): string => {
+  const oneLine = (v: string) => v.replace(/\s+/g, " ").trim()
+  const header = [
+    CORPUS_MAGIC,
+    `#engine: ${meta.engine}`,
+    `#sessionId: ${meta.sessionId}`,
+    `#cwd: ${meta.cwd ?? ""}`,
+    `#title: ${oneLine(meta.title)}`,
+    `#updatedAt: ${Math.floor(meta.updatedAt)}`,
+    HEADER_END,
+  ]
+  const body = messages.map((m) => `${m.role === "user" ? "U" : "A"}: ${m.content.trim()}`)
+  return `${header.join("\n")}\n${body.join("\n")}\n`
+}
+
+export const parseCorpusHeader = (text: string): CorpusMeta | null => {
+  const lines = text.split("\n")
+  if (lines[0] !== CORPUS_MAGIC) return null
+  const fields: Record<string, string> = {}
+  for (const line of lines.slice(1, CORPUS_HEADER_LINES)) {
+    if (line === HEADER_END) break
+    const m = line.match(/^#(\w+): ?(.*)$/)
+    if (m) fields[m[1]] = m[2]
+  }
+  if (!fields.engine || !fields.sessionId) return null
+  return {
+    engine: fields.engine,
+    sessionId: fields.sessionId,
+    cwd: fields.cwd || null,
+    title: fields.title ?? "",
+    updatedAt: Number(fields.updatedAt) || 0,
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// ripgrep output (pure)
+// ─────────────────────────────────────────────────────────
+
+export interface RgLineMatch {
+  readonly file: string
+  readonly line: string
+  /** 1-based; tells header lines apart from message lines that merely start with '#'. */
+  readonly lineNumber: number
+}
+
+export const parseRgJson = (stdout: string): RgLineMatch[] =>
+  stdout.split("\n").flatMap((raw): RgLineMatch[] => {
+    if (!raw.startsWith('{"type":"match"')) return []
+    const parsed = Either.try(
+      () =>
+        JSON.parse(raw) as {
+          data?: { path?: { text?: string }; lines?: { text?: string }; line_number?: number }
+        }
+    )
+    if (Either.isLeft(parsed)) return []
+    const d = parsed.right.data
+    const file = d?.path?.text
+    const text = d?.lines?.text
+    const lineNumber = d?.line_number
+    if (!file || typeof text !== "string" || typeof lineNumber !== "number") return []
+    return [{ file, line: text.replace(/\n$/, ""), lineNumber }]
+  })
+
+const snippetAround = (line: string, terms: ReadonlyArray<string>): string => {
+  const lower = line.toLowerCase()
+  const at =
+    terms
+      .map((t) => lower.indexOf(t.toLowerCase()))
+      .filter((i) => i >= 0)
+      .sort((a, b) => a - b)[0] ?? 0
+  const start = Math.max(0, at - SNIPPET_RADIUS)
+  const end = Math.min(line.length, at + SNIPPET_RADIUS)
+  return `${start > 0 ? "…" : ""}${line.slice(start, end)}${end < line.length ? "…" : ""}`
+}
+
+export interface GroupedMatch {
+  matchCount: number
+  readonly matchedTerms: Set<string>
+  readonly snippets: string[]
+}
+
+export const groupMatches = (
+  matches: ReadonlyArray<RgLineMatch>,
+  terms: ReadonlyArray<string>
+): Map<string, GroupedMatch> => {
+  const byFile = new Map<string, GroupedMatch>()
+  for (const { file, line, lineNumber } of matches) {
+    // Header fields other than the title are addressing metadata. Decided by position,
+    // not by a leading '#': markdown headings inside a reply start with '#' too.
+    if (lineNumber <= CORPUS_HEADER_LINES && lineNumber !== CORPUS_TITLE_LINE) continue
+    const lower = line.toLowerCase()
+    const hitTerms = terms.filter((t) => lower.includes(t.toLowerCase()))
+    if (hitTerms.length === 0) continue
+    const entry = byFile.get(file) ?? { matchCount: 0, matchedTerms: new Set<string>(), snippets: [] }
+    entry.matchCount++
+    hitTerms.forEach((t) => entry.matchedTerms.add(t))
+    if (entry.snippets.length < SNIPPETS_PER_HIT) entry.snippets.push(snippetAround(line, hitTerms))
+    byFile.set(file, entry)
+  }
+  return byFile
+}
+
+// ─────────────────────────────────────────────────────────
+// Filesystem IO
+// ─────────────────────────────────────────────────────────
+
+const fsTry = <A>(
+  path: string,
+  op: FSOp,
+  fn: () => Promise<A>
+): Effect.Effect<A, FSError> =>
+  Effect.tryPromise({ try: fn, catch: (cause) => new FSError({ path, op, cause }) })
+
+const readJsonOr = <T>(file: string, fallback: T): Effect.Effect<T, never> =>
+  fsTry(file, "read", () => readFile(file, "utf8")).pipe(
+    Effect.flatMap((raw) => Effect.try(() => JSON.parse(raw) as T)),
+    Effect.orElseSucceed(() => fallback)
+  )
+
+/** First `bytes` of a file as UTF-8; the handle is always closed. */
+const readHead = (file: string, bytes: number): Effect.Effect<string, FSError> =>
+  Effect.acquireUseRelease(
+    fsTry(file, "read", () => open(file, "r")),
+    (fh) =>
+      fsTry(file, "read", async () => {
+        const buf = Buffer.alloc(bytes)
+        const { bytesRead } = await fh.read(buf, 0, bytes, 0)
+        return buf.subarray(0, bytesRead).toString("utf-8")
+      }),
+    (fh) => Effect.tryPromise(() => fh.close()).pipe(Effect.ignore)
+  )
+
+export interface AtomicWriteOps {
+  readonly mkdir: (dir: string, opts: { recursive: true }) => Promise<unknown>
+  readonly writeFile: (file: string, text: string) => Promise<void>
+  readonly rename: (from: string, to: string) => Promise<void>
+  readonly rm: (file: string, opts: { force: true }) => Promise<void>
+}
+
+const nodeAtomicWriteOps: AtomicWriteOps = { mkdir, writeFile, rename, rm }
+
+/**
+ * Write via a sibling temp file + rename: a reader outside the lock sees the old or the
+ * new file, never a truncated one. The temp name ends in `.tmp`, outside rg's `*.txt` glob.
+ *
+ * Whatever fails between creating the temp file and the rename — a partial writeFile
+ * (disk full, quota, EIO) or the rename itself — removes the temp file and rethrows the
+ * ORIGINAL error; a failing cleanup never masks it. Otherwise every retrying sync would
+ * leave another orphan that no manifest entry ever points at.
+ */
+export const writeAtomically = async (
+  file: string,
+  text: string,
+  ops: AtomicWriteOps = nodeAtomicWriteOps
+): Promise<void> => {
+  await ops.mkdir(dirname(file), { recursive: true })
+  const tmp = `${file}.${randomUUID()}.tmp`
+  await ops
+    .writeFile(tmp, text)
+    .then(() => ops.rename(tmp, file))
+    .catch(async (err: unknown) => {
+      await ops.rm(tmp, { force: true }).catch(() => undefined)
+      throw err
+    })
+}
+
+const listSubdirs = (root: string): Effect.Effect<string[], never> =>
+  fsTry(root, "read", () => readdir(root, { withFileTypes: true })).pipe(
+    Effect.map((entries) => entries.filter((d) => d.isDirectory()).map((d) => d.name)),
+    Effect.orElseSucceed(() => [] as string[])
+  )
+
+const listTopLevelTranscripts = (dir: string): Effect.Effect<string[], never> =>
+  fsTry(dir, "read", () => readdir(dir)).pipe(
+    Effect.map((files) => files.filter((f) => f.endsWith(".jsonl") && !f.startsWith("agent-"))),
+    Effect.orElseSucceed(() => [] as string[])
+  )
+
+export const listCorpusSources: Effect.Effect<CorpusSource[], never> = Effect.gen(function* () {
+  const out: CorpusSource[] = []
+  const fromShardedStore = (engine: string, root: string): Effect.Effect<void, never> =>
+    Effect.gen(function* () {
+      for (const encodedDir of yield* listSubdirs(root)) {
+        for (const file of yield* listTopLevelTranscripts(join(root, encodedDir))) {
+          out.push({
+            engine,
+            sessionId: file.slice(0, -".jsonl".length),
+            sourcePath: join(root, encodedDir, file),
+            cwd: null,
+            encodedDir,
+          })
+        }
+      }
+    })
+
+  yield* fromShardedStore("claude", CLAUDE_PROJECTS_DIR)
+  for (const engine of BUILTIN_ENGINES) {
+    yield* fromShardedStore(engine, getBuiltinSessionsRoot(engine))
+  }
+  const codex = yield* Effect.try(() => listCodexSessions()).pipe(Effect.orElseSucceed(() => []))
+  for (const entry of codex) {
+    out.push({ engine: "codex", sessionId: entry.id, sourcePath: entry.path, cwd: entry.cwd || null, encodedDir: null })
+  }
+  return out
+})
+
+/** First `cwd` field found near the head of a claude transcript. */
+const firstCwdInTranscript = (file: string): Effect.Effect<string | null, never> =>
+  readHead(file, CWD_PROBE_BYTES).pipe(
+    Effect.map((head) => {
+      for (const line of head.split("\n")) {
+        if (!line.includes('"cwd"')) continue
+        const parsed = Either.try(() => JSON.parse(line) as { cwd?: unknown })
+        if (Either.isRight(parsed) && typeof parsed.right.cwd === "string" && parsed.right.cwd) {
+          return parsed.right.cwd
+        }
+      }
+      return null
+    }),
+    Effect.orElseSucceed(() => null)
+  )
+
+/**
+ * encodedDir → cwd, for stores whose transcripts carry no cwd. Encoding is not
+ * reversible, so every cwd we know about is encoded and matched on the result.
+ */
+const buildCwdLookup = (
+  cockpitDir: string,
+  knownCwds: ReadonlyArray<string>
+): Effect.Effect<Map<string, string>, never> =>
+  Effect.gen(function* () {
+    const lookup = new Map<string, string>()
+    const add = (cwd: unknown) => {
+      if (typeof cwd === "string" && cwd) lookup.set(encodePath(cwd), cwd)
+    }
+    const projects = yield* readJsonOr<{ projects?: Array<{ cwd?: string }> }>(join(cockpitDir, "projects.json"), {})
+    const state = yield* readJsonOr<{ sessions?: Array<{ cwd?: string }> }>(GLOBAL_STATE_FILE, {})
+    for (const p of projects.projects ?? []) add(p.cwd)
+    for (const s of state.sessions ?? []) add(s.cwd)
+    for (const cwd of knownCwds) add(cwd)
+    return lookup
+  })
+
+/** Cheap resolution from already-known facts: no transcript reads. */
+const knownCwd = (source: CorpusSource, lookup: Map<string, string>): string | null =>
+  source.cwd ?? (source.encodedDir ? lookup.get(source.encodedDir) ?? null : null)
+
+/** Full resolution: may read transcript heads. */
+const resolveCwd = (
+  source: CorpusSource,
+  lookup: Map<string, string>
+): Effect.Effect<string | null, never> =>
+  Effect.gen(function* () {
+    if (source.cwd) return source.cwd
+    if (source.engine === "claude") {
+      const fromFile = yield* firstCwdInTranscript(source.sourcePath)
+      if (fromFile) {
+        if (source.encodedDir) lookup.set(source.encodedDir, fromFile)
+        return fromFile
+      }
+    }
+    const known = knownCwd(source, lookup)
+    if (known || !source.encodedDir) return known
+    // A built-in engine session in a project that also has claude sessions.
+    const claudeDir = join(CLAUDE_PROJECTS_DIR, source.encodedDir)
+    for (const file of yield* listTopLevelTranscripts(claudeDir)) {
+      const cwd = yield* firstCwdInTranscript(join(claudeDir, file))
+      if (cwd) {
+        // Reuse for the other sessions sharing this encoded directory.
+        lookup.set(source.encodedDir, cwd)
+        return cwd
+      }
+    }
+    return null
+  })
+
+const extractText = (
+  source: CorpusSource,
+  cwd: string | null,
+  updatedAt: number
+): Effect.Effect<string | null, AppError> =>
+  Effect.tryPromise({
+    try: () =>
+      source.engine === "codex"
+        ? parseCodexTranscriptFile(source.sourcePath)
+        : parseTranscriptFile(source.sourcePath),
+    catch: (cause) => new AppError({ message: `failed to parse transcript ${source.sourcePath}`, cause }),
+  }).pipe(
+    Effect.map((parsed) => {
+      const messages = parsed.messages
+        .filter((m) => (m.role === "user" || m.role === "assistant") && m.content.trim())
+        .map((m) => ({ role: m.role, content: m.content }))
+      return messages.length === 0
+        ? null
+        : renderCorpusText({ engine: source.engine, sessionId: source.sessionId, cwd, title: parsed.title, updatedAt }, messages)
+    })
+  )
+
+// ─────────────────────────────────────────────────────────
+// Sync
+// ─────────────────────────────────────────────────────────
+
+interface Planned {
+  readonly source: CorpusSource
+  readonly fingerprint: string
+  readonly corpusPath: string
+  readonly mtimeMs: number
+  /** Already resolved during planning; undefined = resolve during the rebuild. */
+  readonly cwd: string | null | undefined
+}
+
+const syncImpl = (cockpitDir: string, corpusDir: string): Effect.Effect<CorpusSyncStats, FSError> =>
+  Effect.gen(function* () {
+    const manifestFile = join(corpusDir, "manifest.json")
+    yield* fsTry(corpusDir, "mkdir", () => mkdir(corpusDir, { recursive: true }))
+    const previous = yield* readJsonOr<Manifest>(manifestFile, {})
+    const sources = yield* listCorpusSources
+    const lookup = yield* buildCwdLookup(
+      cockpitDir,
+      sources.flatMap((s) => (s.cwd ? [s.cwd] : []))
+    )
+
+    const next: Manifest = {}
+    const planned: Planned[] = []
+    for (const source of sources) {
+      const st = yield* fsTry(source.sourcePath, "stat", () => stat(source.sourcePath)).pipe(Effect.option)
+      if (st._tag === "None") continue
+      const fingerprint = `${Math.floor(st.value.mtimeMs)}-${st.value.size}`
+      const corpusPath = join(corpusDir, source.engine, `${source.sessionId}.txt`)
+      const prev = previous[source.sourcePath]
+      const unchanged = prev !== undefined && prev.fingerprint === fingerprint
+      const corpusPresent =
+        prev !== undefined &&
+        (prev.corpusPath === "" ||
+          (yield* fsTry(prev.corpusPath, "stat", () => stat(prev.corpusPath)).pipe(Effect.option))._tag === "Some")
+      if (unchanged && corpusPresent) {
+        const prevCwd = prev.cwd ?? null
+        // An unknown project directory may have become resolvable without this source's
+        // fingerprint changing (a newly registered project, or a claude transcript appearing
+        // in the same encoded dir). Use the full resolution — the same one a rebuild uses —
+        // so every source of evidence counts.
+        const resolved = prevCwd === null ? yield* resolveCwd(source, lookup) : prevCwd
+        if (resolved === prevCwd) {
+          next[source.sourcePath] = { fingerprint, corpusPath: prev.corpusPath, cwd: prevCwd }
+          continue
+        }
+        planned.push({ source, fingerprint, corpusPath, mtimeMs: st.value.mtimeMs, cwd: resolved })
+        continue
+      }
+      planned.push({ source, fingerprint, corpusPath, mtimeMs: st.value.mtimeMs, cwd: undefined })
+    }
+
+    const rebuilt = yield* Effect.forEach(
+      planned,
+      ({ source, fingerprint, corpusPath, mtimeMs, cwd: plannedCwd }): Effect.Effect<readonly [string, ManifestEntry | null], never> =>
+        Effect.gen(function* () {
+          const cwd = plannedCwd !== undefined ? plannedCwd : yield* resolveCwd(source, lookup)
+          const extracted = yield* Effect.either(extractText(source, cwd, mtimeMs))
+          if (Either.isLeft(extracted)) {
+            // A read failure is NOT "no searchable text": keep whatever was indexed before
+            // (old corpus file, old fingerprint), so the next sync sees a mismatch and retries.
+            yield* Effect.logWarning("session search: unreadable transcript, will retry").pipe(
+              Effect.annotateLogs({ path: source.sourcePath, error: extracted.left.message })
+            )
+            const kept: readonly [string, ManifestEntry | null] = [source.sourcePath, previous[source.sourcePath] ?? null]
+            return kept
+          }
+          const text = extracted.right
+          const written: Effect.Effect<ManifestEntry, FSError> = text
+            ? fsTry(corpusPath, "write", () => writeAtomically(corpusPath, text)).pipe(
+                Effect.as({ fingerprint, corpusPath, cwd })
+              )
+            : fsTry(corpusPath, "rm", () => rm(corpusPath, { force: true })).pipe(
+                Effect.as({ fingerprint, corpusPath: "", cwd })
+              )
+          // A write failure leaves the source out of the manifest, so the next sync retries it.
+          const entry = yield* written.pipe(
+            Effect.catchAll((e) =>
+              Effect.logWarning("session search: failed to write corpus file").pipe(
+                Effect.annotateLogs({ path: e.path }),
+                Effect.as(null)
+              )
+            )
+          )
+          const result: readonly [string, ManifestEntry | null] = [source.sourcePath, entry]
+          return result
+        }),
+      { concurrency: PARSE_CONCURRENCY }
+    )
+    for (const [sourcePath, entry] of rebuilt) {
+      if (entry) next[sourcePath] = entry
+    }
+
+    let removed = 0
+    for (const [sourcePath, entry] of Object.entries(previous)) {
+      if (next[sourcePath] !== undefined || rebuilt.some(([p]) => p === sourcePath)) continue
+      if (entry.corpusPath) {
+        yield* fsTry(entry.corpusPath, "rm", () => rm(entry.corpusPath, { force: true })).pipe(Effect.ignore)
+      }
+      removed++
+    }
+
+    yield* fsTry(manifestFile, "write", () => writeAtomically(manifestFile, JSON.stringify(next)))
+    return {
+      sources: sources.length,
+      indexed: Object.values(next).filter((e) => e.corpusPath).length,
+      rebuilt: rebuilt.length,
+      removed,
+    }
+  })
+
+// ─────────────────────────────────────────────────────────
+// Search
+// ─────────────────────────────────────────────────────────
+
+const runRipgrep = (corpusDir: string, terms: ReadonlyArray<string>): Effect.Effect<string, AppError> =>
+  Effect.async<string, AppError>((resume) => {
+    const args = [
+      "--json",
+      "--ignore-case",
+      "--fixed-strings",
+      "--max-count", "50",
+      "--glob", "*.txt",
+      ...terms.flatMap((t) => ["-e", t]),
+      corpusDir,
+    ]
+    const child = execFile(rgPath, args, { maxBuffer: 64 * 1024 * 1024, timeout: 15_000 }, (err, stdout) => {
+      // Exit code 1 = no matches: not an error.
+      if (err && (err as { code?: unknown }).code !== 1) {
+        resume(Effect.fail(new AppError({ message: "ripgrep failed", cause: err })))
+      } else {
+        resume(Effect.succeed(stdout ?? ""))
+      }
+    })
+    // Interrupting the fiber (client gone) stops the search process.
+    return Effect.sync(() => {
+      child.kill()
+    })
+  })
+
+const readCorpusHeader = (corpusPath: string): Effect.Effect<CorpusMeta | null, never> =>
+  readHead(corpusPath, HEADER_PROBE_BYTES).pipe(
+    Effect.map(parseCorpusHeader),
+    Effect.orElseSucceed(() => null)
+  )
+
+const searchImpl = (
+  corpusDir: string,
+  query: SessionSearchQuery
+): Effect.Effect<ReadonlyArray<SessionSearchHit>, AppError> =>
+  Effect.gen(function* () {
+    const grouped = groupMatches(parseRgJson(yield* runRipgrep(corpusDir, query.terms)), query.terms)
+    const cwdPrefix = query.cwd ? query.cwd.replace(/\/+$/, "") : undefined
+    const hits: SessionSearchHit[] = []
+    for (const [file, g] of grouped) {
+      const meta = yield* readCorpusHeader(resolve(file))
+      if (!meta) continue
+      if (cwdPrefix && !(meta.cwd === cwdPrefix || meta.cwd?.startsWith(`${cwdPrefix}/`))) continue
+      if (query.since !== undefined && meta.updatedAt < query.since) continue
+      hits.push({
+        ...meta,
+        link: meta.cwd ? buildSessionLink(meta.cwd, meta.sessionId) : null,
+        matchCount: g.matchCount,
+        matchedTerms: [...g.matchedTerms],
+        snippets: g.snippets,
+      })
+    }
+    hits.sort(
+      (a, b) =>
+        b.matchedTerms.length - a.matchedTerms.length ||
+        b.matchCount - a.matchCount ||
+        b.updatedAt - a.updatedAt
+    )
+    return hits.slice(0, query.limit)
+  })
+
+// ─────────────────────────────────────────────────────────
+// Layer
+// ─────────────────────────────────────────────────────────
+
+export const SessionSearchServiceLive = Layer.effect(
+  SessionSearchService,
+  Effect.gen(function* () {
+    const cfg = yield* CockpitConfig
+    const corpusDir = join(cfg.cockpitDir, "search-corpus")
+    // Readers-writer lock over the corpus: a sync takes every permit, a search takes one.
+    // Searches run together but never overlap a sync, so the rg pass and the header reads
+    // that follow it see one generation of the corpus.
+    const corpusLock = yield* Effect.makeSemaphore(CORPUS_LOCK_PERMITS)
+    return SessionSearchService.of({
+      sync: corpusLock
+        .withPermits(CORPUS_LOCK_PERMITS)(syncImpl(cfg.cockpitDir, corpusDir))
+        .pipe(Effect.withSpan("sessionSearch.sync")),
+      search: (query: SessionSearchQuery) =>
+        corpusLock.withPermits(1)(searchImpl(corpusDir, query)).pipe(Effect.withSpan("sessionSearch.search")),
+    })
+  })
+)
