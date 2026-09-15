@@ -91,10 +91,14 @@ export function spawnHandoff(opts: HandoffOptions): number | undefined {
     // Never the install dir: on Windows a process's cwd blocks that directory
     // from being replaced.
     cwd: COCKPIT_DIR,
-    // sanitizedSpawnEnv strips only what Next injects into our own process
-    // (NODE_ENV, TURBOPACK, ...); everything else — crucially COCKPIT_TOKEN —
-    // rides along.
-    env: sanitizedSpawnEnv(),
+    // This is Cockpit infrastructure, not a process working in a user's
+    // project. Restore PORT explicitly after sanitizedSpawnEnv removes the
+    // host-only value; updater.mjs passes it to the replacement server so a
+    // custom listening port survives restart/update. Everything else —
+    // crucially COCKPIT_TOKEN — rides along too.
+    env: sanitizedSpawnEnv({
+      PORT: process.env.PORT ?? process.env.COCKPIT_PORT,
+    }),
     detached: true,
     windowsHide: true,
     stdio: "ignore",

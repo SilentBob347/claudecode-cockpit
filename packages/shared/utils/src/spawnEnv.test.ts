@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizedSpawnEnv, NEXT_INJECTED_ENV_KEYS } from './spawnEnv';
+import {
+  sanitizedSpawnEnv,
+  HOST_ONLY_ENV_KEYS,
+} from './spawnEnv';
 
 const BASE = {
   PATH: '/usr/bin',
@@ -8,14 +11,20 @@ const BASE = {
   NODE_ENV: 'production',
   NEXT_DEPLOYMENT_ID: '',
   TURBOPACK: 'auto',
+  PORT: '43457',
+  COCKPIT_PORT: '43457',
 } satisfies NodeJS.ProcessEnv;
 
 describe('sanitizedSpawnEnv', () => {
-  it('removes every variable Next injects into the server process', () => {
+  it('removes every host-only variable from project children', () => {
     const env = sanitizedSpawnEnv({}, BASE);
-    for (const key of NEXT_INJECTED_ENV_KEYS) {
+    for (const key of HOST_ONLY_ENV_KEYS) {
       expect(key in env, `${key} must not reach the child`).toBe(false);
     }
+  });
+
+  it('keeps the namespaced Cockpit port for CLI bridges', () => {
+    expect(sanitizedSpawnEnv({}, BASE).COCKPIT_PORT).toBe('43457');
   });
 
   it('deletes rather than blanks — an empty string is not good enough', () => {
@@ -30,11 +39,13 @@ describe('sanitizedSpawnEnv', () => {
       PATH: '/usr/bin',
       HOME: '/home/u',
       ANTHROPIC_API_KEY: 'sk-test',
+      COCKPIT_PORT: '43457',
     });
   });
 
   it('applies overrides after stripping, so a caller can set a stripped key back', () => {
     expect(sanitizedSpawnEnv({ NODE_ENV: 'test' }, BASE).NODE_ENV).toBe('test');
+    expect(sanitizedSpawnEnv({ PORT: '43457' }, BASE).PORT).toBe('43457');
   });
 
   it('treats an undefined override as a delete (empty string would break the SDK)', () => {
