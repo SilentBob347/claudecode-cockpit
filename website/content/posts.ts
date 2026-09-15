@@ -52,9 +52,9 @@ export const posts: Post[] = [
     ],
     content: {
       en: {
-        title: 'Find any past session with /ss, hand work off with /dl',
+        title: 'Find and Delegate AI Sessions with /ss and /dl',
         description:
-          'OpenCockpit adds two built-in commands. `/ss` finds a past session across every project, engine and date from one sentence. `/dl` hands a sub-task to a new session in any directory on any engine and returns at once — ask later how it went.',
+          'Find past AI sessions across projects with /ss. Delegate a task to a new session with /dl, then check its progress in OpenCockpit.',
         readingTime: '3 min read',
         body: `Two things get harder the longer you use OpenCockpit. You remember *talking* about something — "that session where we worked out the CSRF issue" — but not which project, which engine, or which week. And halfway through a task you spot work that belongs somewhere else — a flaky test in another repo, a job you'd rather give to Codex — and the only option is to stop, open a tab, switch directory and engine, re-explain the context, and remember to check back.
 
@@ -189,9 +189,9 @@ agent 找到回执 —— 在当前对话里,或者在别的会话里通过 \`/s
     ],
     content: {
       en: {
-        title: 'Turn a prompt into an HTML app that runs real bash',
+        title: 'Build HTML Apps That Run Bash',
         description:
-          'A plain HTML preview is static — the same-origin sandbox blocks it from fetching real data. OpenCockpit now injects a `window.cockpit` SDK into the preview, so `/html` generates a small app whose buttons can `curl`, read/write files, and run scripts. Bookmark it into an HTML panel and reopen it anytime.',
+          'Generate HTML apps with /html in OpenCockpit. Use the injected SDK to run shell commands, read files and save reusable tools in an HTML panel.',
         readingTime: '5 min read',
         body: `You ask an agent for "a small dashboard for my repo's stars," it writes a tidy \`.html\`, you open the preview — and it's dead. The page tries to \`fetch()\` an API and the same-origin sandbox kills it with a CORS error. A rendered HTML preview has always been a picture behind glass: it can lay out, but it can't *do* anything.
 
@@ -345,9 +345,9 @@ const h = cockpit.bash("tail -f ./build.log", {
     ],
     content: {
       en: {
-        title: 'Review What Your AI Actually Changed — One Tool Call at a Time',
+        title: 'Review AI Changes One Tool Call at a Time',
         description:
-          'OpenCockpit now snapshots your project after every file-touching tool call. Open any reply and read its changes like git history: one entry per Edit, Write, Bash or MCP call, each with the real on-disk diff — in order.',
+          'Inspect the actual file changes from each Edit, Write, Bash or MCP call with OpenCockpit snapshots and per-call diffs.',
         readingTime: '5 min read',
         body: `
 An agent turn ends. The reply says "done — refactored the module, updated the callers, fixed the test." Fifteen tool calls scrolled past. Now the only question that matters: **what exactly changed?**
@@ -457,9 +457,9 @@ Cockpit 现在会在**每次碰文件的工具调用之后**给项目拍快照�
     ],
     content: {
       en: {
-        title: 'Self-Host a Claude Code GUI for Your Whole Team (One Dev Box, Zero Installs)',
+        title: 'Self-Host a Claude Code GUI for Your Team',
         description:
-          'Self-host Claude Code on one shared dev box with OpenCockpit. Give every teammate a browser-based AI coding workspace with isolated projects and worktrees.',
+          'Run OpenCockpit on a shared dev box. Give teammates browser access to Claude Code, with separate projects and Git worktrees.',
         readingTime: '6 min read',
         body: `Most Claude Code GUIs are desktop apps: one install per laptop, one config per person, one machine per seat. OpenCockpit is a **web client–server** — which unlocks a deployment model the desktop apps can't do:
 
@@ -682,9 +682,9 @@ OpenCockpit 的多席位模型是**基于信任的**，就像共享机器的 SSH
     ],
     content: {
       en: {
-        title: 'OpenCockpit now takes an access token',
+        title: 'Protect Remote Access with an Access Token',
         description:
-          'OpenCockpit is local-first and fully open on your own machine. When you expose it on a LAN or a cloud sandbox, an optional access token now guards remote access — while local stays frictionless.',
+          'Set an OpenCockpit access token to guard remote connections from your LAN or cloud sandbox while keeping local access simple.',
         readingTime: '2 min read',
         body: `Cockpit has always been local-first: it binds to \`127.0.0.1\`, and on your own machine anyone on that machine can use it. That's the right default for a local tool. But sometimes you put Cockpit somewhere else — on your LAN, or in a cloud sandbox — and then "anyone who can reach the port" is too open. This release adds an optional shared access token.
 
@@ -792,9 +792,9 @@ COCKPIT_HOST=0.0.0.0 cockpit --token 你的密钥
     ],
     content: {
       en: {
-        title: 'OpenCockpit on your phone',
+        title: 'Use OpenCockpit on Your Phone',
         description:
-          'OpenCockpit now has a mobile layout. Open it on your phone to see your sessions, open any chat, and receive a notification when a run finishes.',
+          'Open your AI sessions on your phone, continue a chat and receive notifications when a run finishes with OpenCockpit’s mobile layout.',
         readingTime: '2 min read',
         body: `Agents often keep running after you've left your desk. Until now, checking on them meant coming back to a computer. This release adds a mobile layout and notifications, so you can check on your sessions from your phone.
 
@@ -881,9 +881,9 @@ Update Cockpit and open it on your phone. Turn on notifications and start a run.
     ],
     content: {
       en: {
-        title: 'Orchestrate a workflow from the message box',
+        title: 'Run Multi-Step AI Workflows from Chat',
         description:
-          'A OpenCockpit message can now hold more than one command. Start several lines with `/` or `@` and Cockpit reads the whole message as an ordered, multi-step workflow — `/` runs in the main session, `@` delegates to a sub-agent. Plan the run once, send it once.',
+          'Combine slash commands and sub-agent tasks in one OpenCockpit message. Run an ordered workflow with / commands and @ delegation.',
         readingTime: '4 min read',
         body: `Most agent work isn't one instruction — it's a small sequence. *Clarify what I actually want, then fix it, then have something independent review the fix.* Until now that was three messages, sent one at a time, each waiting on the last. As of this release you can write the whole thing in one message: start lines with \`/\` or \`@\` and Cockpit reads them as an ordered workflow.
 
@@ -1036,9 +1036,9 @@ Update Cockpit, open a chat, and write two commands on two lines — say \`/qa\`
     ],
     content: {
       en: {
-        title: 'OpenCockpit now has a Claude Code CLI execution mode',
+        title: 'Use Claude Code CLI Mode in OpenCockpit',
         description:
-          'Every Claude chat tab in OpenCockpit can now run in one of two ways: the Claude Agent SDK (headless `query()`), or a real interactive `claude` session driven in a PTY. Both share the same conversation, so you can switch per tab, mid-conversation, one click away. Here is what the new CLI mode is and how it works.',
+          'Switch a Claude tab between the Agent SDK and an interactive CLI session. Learn how OpenCockpit’s CLI mode works with your conversation.',
         readingTime: '5 min read',
         body: `Cockpit drives Claude Code through the Claude Agent SDK — \`query()\`, headless, programmatic. That is still the default. As of this release, each Claude / Claude2 chat tab also has a second execution mode you can flip to: **Claude Code CLI**.
 
@@ -1165,9 +1165,9 @@ SDK 的 \`query({ resume })\` 和 CLI 的 \`claude -r\` 操作的是**同一份*
     ],
     content: {
       en: {
-        title: 'What is a Code Graph (and why your AI needs one)',
+        title: 'Code Graphs for AI Agents: Symbols and Calls',
         description:
-          "A code graph is the structured map of your project's symbols and their relationships — who calls whom, what depends on what, which files always get edited together. It is exactly the missing layer between an AI agent and your codebase, and the reason `grep` is the agent's ceiling on the questions that matter most.",
+          'Learn how code graphs map symbols, callers and dependencies, and how OpenCockpit gives AI agents structural context beyond text search.',
         readingTime: '6 min read',
         body: `A **code graph** is a structured map of your project's symbols and the relationships between them — who calls whom, what depends on what, which files always get edited together. It is the kind of mental model a human builds before refactoring. For an AI agent still doing \`grep -r\` to find anything, it is the missing layer.
 
@@ -1368,9 +1368,9 @@ CodeGraph 是同一个想法，换成可查询接口。**同一份 tree-sitter �
     ],
     content: {
       en: {
-        title: 'Vibe coding needs a bit of taste',
+        title: 'Vibe Coding Needs Software Design',
         description:
-          "Vibe coding's hidden cost isn't speed — it's entropy. Cockpit's repo today is two piles: `packages/feature/` is the business, `packages/shared/` is the common floor, arrows go one way. From that picture, three old-school engineering habits — putting things in the right place, drawing real boundaries, deleting what doesn't fit — become more valuable when the agent is the one typing.",
+          'Keep AI-generated code maintainable with clear module boundaries, deliberate file placement and deletion of code that no longer fits.',
         readingTime: '6 min read',
         body: `The agent finishes a run. Diff is a hundred-something lines. Looks fine. You hit approve.
 
@@ -1535,9 +1535,9 @@ packages/shared/           ui  utils  i18n
     ],
     content: {
       en: {
-        title: 'Read code as a map, not a tree',
+        title: 'Explore Callers and Callees with Code Map',
         description:
-          "The file tree shows you where bytes are stored. It does not show you how the code actually moves. Cockpit's new Code Map turns any source file into a canvas of function chips — callers on the left, callees on the right, click a pin to jump. Five clicks across an unfamiliar repo and you've walked the auth flow. Here is what that looks like in five real scenarios.",
+          'Explore a source file as a map of functions. Follow callers and callees in OpenCockpit’s Code Map through five practical code-reading scenarios.',
         readingTime: '7 min read',
         body: `You clone a new repo. \`npm install\`. \`npm run dev\`. It works.
 
@@ -1744,9 +1744,9 @@ Code Map 完全跑在你笔电上，由 tree-sitter 解析。没有 language ser
     ],
     content: {
       en: {
-        title: 'Use DeepSeek inside OpenCockpit — and keep all your Claude habits',
+        title: 'Set Up DeepSeek in OpenCockpit',
         description:
-          'OpenCockpit now talks to DeepSeek. Open a tab, paste a key, and DeepSeek-v4 edits your files, runs your terminal, reviews your diffs — exactly the way you already use Claude. Here is how to set it up in under a minute and what to expect.',
+          'Connect DeepSeek to OpenCockpit with your API key. Use it to edit files, run terminal commands and review diffs in the same workspace.',
         readingTime: '4 min read',
         body: `If you already use Cockpit with Claude, you have a workflow: open a tab, ask the agent to fix a bug, watch it edit files, run tests, hand you a clean diff. Slash commands like \`/qa\` and \`/fx\` are muscle memory.
 
@@ -1912,9 +1912,9 @@ cock
     ],
     content: {
       en: {
-        title: 'From chat to skill: turn yesterday\u2019s 28-minute debug into today\u2019s /command',
+        title: 'Turn an AI Chat into a Reusable Skill',
         description:
-          'Every productive Claude Code session ends with dark knowledge that dies with the conversation. OpenCockpit\u2019s Skills feature lets the agent crystallize a chat into a SKILL.md \u2014 saved to *your* knowledge base (not a Cockpit-owned folder), then registered as a slash command. Your notes stay where they live; Cockpit just holds the pointer.',
+          'Save lessons from an AI coding session as a SKILL.md in your own knowledge base, then register it as a slash command in OpenCockpit.',
         readingTime: '6 min read',
         body: `Yesterday I spent **28 minutes** walking Claude through our OAuth refresh-token flow. Token endpoint, leeway window, two custom claims, the one staging-only quirk. Bug found, fixed, shipped.
 
@@ -2284,9 +2284,9 @@ Cockpit 的局域网共享评审页（参见[上一篇博客](/zh/blog/claude-co
     ],
     content: {
       en: {
-        title: 'How to run 5 Claude Code sessions in parallel without losing your mind',
+        title: 'Run Claude Code Sessions in Parallel',
         description:
-          'Claude Code is incredible at one task at a time — but most engineers want to scope out three features while one is refactoring and another is writing tests. Here is how OpenCockpit lets you run multiple Claude Code Agent SDK sessions across projects at once, without context-switching pain.',
+          'Manage parallel Claude Code sessions across projects in OpenCockpit. Organize tabs, track progress and control context switching and token use.',
         readingTime: '6 min read',
         body: `Most Claude Code users hit the same wall after a week:
 
@@ -2448,9 +2448,9 @@ cockpit ~/work/data-pipeline
     ],
     content: {
       en: {
-        title: 'Claude Code GUI Comparison (2026): CLI, Desktop, Cursor & Open Source',
+        title: 'Claude Code GUIs Compared: CLI to Desktop',
         description:
-          'Compare Claude Code GUI options: CLI, official Desktop, Cursor and IDE plugins, Aider, and OpenCockpit—across parallel work, privacy, cost, and teams.',
+          'Compare Claude Code CLI, Desktop, IDE tools, Aider and OpenCockpit across parallel sessions, privacy, cost and team workflows.',
         readingTime: '8 min read',
         body: `*Updated July 2026 — added the redesigned official Claude Code Desktop app and Cockpit's self-hosting model.*
 

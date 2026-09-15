@@ -11,13 +11,8 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        // /try is the E2B sandbox handler — don't waste crawl budget on it.
-        //
-        // Nothing else is disallowed on purpose. `/_next/` used to be listed
-        // here and must not come back: Googlebot renders the page, so blocking
-        // the build assets hides the CSS/JS it needs to judge layout and mobile
-        // friendliness. Next.js explicitly advises against it.
-        disallow: ['/try', '/try/', '/try/*'],
+        // Crawlers must reach the confirmation page to read its noindex.
+        // Sandbox creation remains behind the Function's bot filter.
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

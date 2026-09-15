@@ -8,7 +8,7 @@
  * directory now only builds the sandbox template — see e2b/README.md.)
  *
  * Two-step flow:
- *   1. GET /try                            → confirmation page (also blocks link-preview bots)
+ *   1. GET /try                            → crawlable noindex confirmation page
  *   2. GET /try?confirm=1
  *        with Accept: application/json     → JSON { url } / 429 / 5xx (used by the in-page button)
  *        plain navigation                  → 302 to sandbox URL (no-JS fallback / direct share)
@@ -30,7 +30,7 @@ const E2B_API = 'https://api.e2b.dev';
 const CONFIRM_HTML = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Cockpit Demo</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex, nofollow">
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0a0a0a; color: #fff; }
   .card { text-align: center; max-width: 420px; padding: 0 24px; }
@@ -136,20 +136,20 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  // Bot filter — including most link-preview crawlers (iMessage, Slack, etc.)
-  if (isBot(request.headers.get('User-Agent'))) {
-    return jsonError('Forbidden', 403);
-  }
-
-  // Step 1: confirmation page
+  // Step 1: public, inert confirmation page. Crawlers can read noindex here.
   if (request.method === 'GET' && !url.searchParams.has('confirm')) {
     return new Response(CONFIRM_HTML, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'private, no-store',
-        'X-Robots-Tag': 'noindex',
+        'X-Robots-Tag': 'noindex, nofollow',
       },
     });
+  }
+
+  // Sandbox creation still blocks bots, including link-preview crawlers.
+  if (isBot(request.headers.get('User-Agent'))) {
+    return jsonError('Forbidden', 403);
   }
 
   // The in-page "Start Demo" button sends `Accept: application/json` to

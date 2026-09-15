@@ -1,3 +1,4 @@
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -56,7 +57,7 @@ export async function generateMetadata({
       alternateLocale: locale === 'zh' ? ['en_US'] : ['zh_CN'],
       images: [
         {
-          url: '/og.png',
+          url: `/og/blog/${slug}.png`,
           width: 1200,
           height: 630,
           alt: c.title,
@@ -67,7 +68,7 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title: c.title,
       description: c.description,
-      images: ['/og.png'],
+      images: [`/og/blog/${slug}.png`],
     },
   };
 }
@@ -115,7 +116,7 @@ export default async function BlogPostPage({
       logo: { '@type': 'ImageObject', url: `${SITE_URL}/icons/icon-128x128.png` },
     },
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-    image: `${SITE_URL}/og.png`,
+    image: `${SITE_URL}/og/blog/${slug}.png`,
   };
 
   return (
@@ -126,12 +127,11 @@ export default async function BlogPostPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <Link
-        href={`/${locale}/blog/`}
-        className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-brand transition-colors"
-      >
-        {t.blog.backToBlog}
-      </Link>
+      <Breadcrumbs items={[
+        { name: 'OpenCockpit', href: `/${locale}/` },
+        { name: t.blog.title, href: `/${locale}/blog/` },
+        { name: c.title, href: `/${locale}/blog/${slug}/` },
+      ]} />
 
       <header className="mt-4 border-b border-border pb-6">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight">

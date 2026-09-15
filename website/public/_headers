@@ -1,0 +1,4 @@
+# Only Next build-versioned assets receive immutable browser caching.
+# HTML, feeds, sitemap and unversioned images retain Pages revalidation.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable

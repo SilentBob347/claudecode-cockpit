@@ -8,12 +8,14 @@
     "dev": "env -u TURBOPACK next dev --webpack -p 3458",
     "prebuild": "node scripts/copy-agent-icons.mjs",
     "build": "node scripts/fetch-changelog.mjs && node scripts/generate-og.mjs && NODE_ENV=production COCKPIT_VERSION=$(node -p \"require('../package.json').version\") env -u TURBOPACK next build --webpack",
-    "postbuild": "node scripts/postbuild-seo.mjs",
+    "postbuild": "node scripts/postbuild-seo.mjs && node scripts/generate-blog-og.mjs && npm run test:seo",
     "start": "next start -p 3458",
     "lint": "eslint",
     "og": "node scripts/generate-og.mjs",
     "lastmod": "node scripts/docs-lastmod.mjs",
-    "preview": "npx wrangler pages dev out --compatibility-date=2024-09-23"
+    "preview": "npx wrangler pages dev out --compatibility-date=2024-09-23",
+    "test:seo": "node scripts/check-seo.mjs && node --test scripts/try.test.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "^16.2.6",
@@ -31,6 +33,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "sharp": "0.34.5",
     "tailwindcss": "^4",
     "typescript": "5.9.3"
   },

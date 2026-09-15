@@ -12,6 +12,7 @@ import {
   findPageBySlug,
   getAvailablePages,
 } from '@/content/docs/sidebar';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { DocsPager } from '@/components/docs/DocsPager';
 import { DocsToc } from '@/components/docs/DocsToc';
 import { mdxComponents } from '@/components/docs/mdxComponents';
@@ -53,9 +54,23 @@ export async function generateMetadata({ params }: DocsPageProps): Promise<Metad
   const source = await readDocSource(slugStr, locale);
   const description = source ? extractDocDescription(source) : undefined;
 
+  const title = `${pageLabel} · ${t.docs.title} · OpenCockpit`;
+  const url = `${SITE_URL}/${locale}/docs/${slugStr}/`;
+
   return {
     title: `${pageLabel} · ${t.docs.title}`,
     description,
+    openGraph: {
+      title, description, url,
+      siteName: 'OpenCockpit',
+      type: 'website',
+      locale: locale === 'zh' ? 'zh_CN' : 'en_US',
+      alternateLocale: locale === 'zh' ? ['en_US'] : ['zh_CN'],
+      images: [{ url: '/og.png', width: 1200, height: 630, alt: 'OpenCockpit' }],
+    },
+    twitter: {
+      card: 'summary_large_image', title, description, images: ['/og.png'],
+    },
     alternates: {
       canonical: `${SITE_URL}/${locale}/docs/${slugStr}/`,
       languages: {
@@ -173,6 +188,11 @@ export default async function DocsContentPage({ params }: DocsPageProps) {
   return (
     <>
     <article className="min-w-0 flex-1 px-4 py-10 sm:px-6 lg:py-12 max-w-3xl">
+      <Breadcrumbs items={[
+        { name: 'OpenCockpit', href: `/${locale}/` },
+        { name: t.docs.title, href: `/${locale}/docs/` },
+        { name: pageLabel, href: `/${locale}/docs/${slugStr}/` },
+      ]} />
       <div className="mb-8">
         <div className="text-xs uppercase tracking-wider text-muted-foreground">
           {sectionLabel}
