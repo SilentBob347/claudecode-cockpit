@@ -69,6 +69,8 @@ export interface Commit {
   subject: string;
   body: string;
   relativeDate: string;
+  /** Present only when every changed file is test or docs content. */
+  changeClass?: import('@cockpit/shared-utils').ChangeClass | null;
 }
 
 export interface FileChange {

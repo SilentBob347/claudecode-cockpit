@@ -303,6 +303,7 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
               onToggle={handleToggle}
               cwd={cwd}
               showChanges={true}
+              showChangeClass
               emptyMessage={t('commitDetail.noFileChanges')}
               className="py-1"
               onExplain={aiBridge && commitShortHash ? handleExplainFile : undefined}

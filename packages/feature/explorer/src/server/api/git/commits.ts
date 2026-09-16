@@ -8,6 +8,7 @@ import { promisify } from "util"
 import { Effect } from "effect"
 import { handler, ok } from "@cockpit/effect-runtime/server"
 import { AppError } from "@cockpit/effect-core"
+import { parseCommitLog } from "./commitLog"
 
 const execAsync = promisify(exec)
 
@@ -38,44 +39,25 @@ export const GET = handler((req) =>
     const limit = parseInt(sp.get("limit") || "50", 10)
     const offset = parseInt(sp.get("offset") || "0", 10)
 
-    const format = "%H%x00%h%x00%an%x00%ae%x00%ci%x00%s%x00%b%x01"
+    // Git expands %xNN placeholders into control-character separators. Keep
+    // the placeholders literal here: an actual NUL cannot be passed to exec.
+    const format = "%x1e%H%x00%h%x00%an%x00%ae%x00%ci%x00%s%x00%b%x00"
     const skipArg = offset > 0 ? `--skip=${offset}` : ""
 
     const stdout = yield* Effect.tryPromise({
       try: () =>
         execAsync(
-          `git -c core.quotePath=false log ${branch} --format="${format}" -n ${limit} ${skipArg}`,
+          `git -c core.quotePath=false log ${branch} --format="${format}" --name-only -n ${limit} ${skipArg}`,
           { cwd, maxBuffer: 10 * 1024 * 1024 }
         ).then((r) => r.stdout),
       catch: (cause) =>
         new AppError({ message: "git log failed", cause }),
     })
 
-    const commits = stdout
-      .split("\x01")
-      .filter((r) => r.includes("\x00")) // git appends a newline after each record; drop that tail
-      .map((record) => {
-        const parts = record.trim().split("\x00")
-        const [
-          hash,
-          shortHash,
-          author,
-          authorEmail,
-          date,
-          subject,
-          body = "",
-        ] = parts
-        return {
-          hash,
-          shortHash,
-          author,
-          authorEmail,
-          date,
-          subject,
-          body: body.trim(),
-          relativeDate: getRelativeDate(new Date(date)),
-        }
-      })
+    const commits = parseCommitLog(stdout).map((commit) => ({
+      ...commit,
+      relativeDate: getRelativeDate(new Date(commit.date)),
+    }))
 
     return ok({ commits })
   }).pipe(Effect.withSpan("api.git.commits"))

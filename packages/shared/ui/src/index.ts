@@ -54,6 +54,7 @@ export { sessionNumberClass, type SessionNumberStatus } from './sessionNumberSty
 
 // File icon (extension-based mapping)
 export { FileIcon, FolderIcon } from './FileIcon';
+export { ChangeClassChip } from './ChangeClassChip';
 
 // Markdown table-of-contents sidebar
 export { TocSidebar, extractToc, type TocItem } from './TocSidebar';

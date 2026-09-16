@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Portal } from '@cockpit/shared-ui';
+import { ChangeClassChip, Portal } from '@cockpit/shared-ui';
 import { BrowserRuntime } from '@cockpit/effect-runtime';
 import {
   saveFile,
@@ -1539,6 +1539,8 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                         onSelect={(node) => node.file && gitStatus.handleStatusFileSelect(node.file as GitFileStatus, 'staged')}
                         onToggle={gitStatus.handleStagedToggle}
                         cwd={cwd}
+                        showChangeClass
+                        hideIndicatorsOnHover
                         emptyMessage={t('fileBrowser.noStagedFiles')}
                         className="py-1"
                         onExplain={aiBridge ? handleExplainStaged : undefined}
@@ -1553,7 +1555,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                                   e.stopPropagation();
                                   gitStatus.handleUnstageFiles(files.map(f => f.path));
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-0.5 text-amber-11 hover:text-amber-10 hover:bg-amber-9/10 dark:hover:bg-amber-9/20 rounded transition-all"
+                                className="hidden group-hover:block p-0.5 text-amber-11 hover:text-amber-10 hover:bg-amber-9/10 dark:hover:bg-amber-9/20 rounded transition-colors"
                                 title={t('fileBrowser.unstageNFiles', { count: files.length })}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1568,7 +1570,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                                 e.stopPropagation();
                                 gitStatus.handleUnstage(node.path);
                               }}
-                              className="opacity-0 group-hover:opacity-100 p-0.5 text-amber-11 hover:text-amber-10 hover:bg-amber-9/10 dark:hover:bg-amber-9/20 rounded transition-all"
+                              className="hidden group-hover:block p-0.5 text-amber-11 hover:text-amber-10 hover:bg-amber-9/10 dark:hover:bg-amber-9/20 rounded transition-colors"
                               title={t('fileBrowser.unstageFile')}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1610,6 +1612,8 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                         onSelect={(node) => node.file && gitStatus.handleStatusFileSelect(node.file as GitFileStatus, 'unstaged')}
                         onToggle={gitStatus.handleUnstagedToggle}
                         cwd={cwd}
+                        showChangeClass
+                        hideIndicatorsOnHover
                         emptyMessage={t('fileBrowser.noUnstagedChanges')}
                         className="py-1"
                         onExplain={aiBridge ? handleExplainUnstaged : undefined}
@@ -1620,13 +1624,13 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                             if (files.length === 0) return null;
                             const fileObjects = files.map(f => f.file as GitFileStatus).filter(Boolean);
                             return (
-                              <div className="flex items-center gap-0.5">
+                              <div className="hidden group-hover:flex items-center gap-0.5">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     gitStatus.handleDiscardFiles(fileObjects);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 text-red-11 hover:text-red-10 hover:bg-red-9/10 dark:hover:bg-red-9/20 rounded transition-all"
+                                  className="p-0.5 text-red-11 hover:text-red-10 hover:bg-red-9/10 dark:hover:bg-red-9/20 rounded transition-colors"
                                   title={t('fileBrowser.discardNFiles', { count: files.length })}
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1638,7 +1642,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                                     e.stopPropagation();
                                     gitStatus.handleStageFiles(files.map(f => f.path));
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 text-green-11 hover:text-green-10 hover:bg-green-9/10 dark:hover:bg-green-9/20 rounded transition-all"
+                                  className="p-0.5 text-green-11 hover:text-green-10 hover:bg-green-9/10 dark:hover:bg-green-9/20 rounded transition-colors"
                                   title={t('fileBrowser.stageNFiles', { count: files.length })}
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1650,13 +1654,13 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                           }
                           if (!node.file) return null;
                           return (
-                            <div className="flex items-center gap-0.5">
+                            <div className="hidden group-hover:flex items-center gap-0.5">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   gitStatus.handleDiscardFile(node.file as GitFileStatus);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-0.5 text-red-11 hover:text-red-10 hover:bg-red-9/10 dark:hover:bg-red-9/20 rounded transition-all"
+                                className="p-0.5 text-red-11 hover:text-red-10 hover:bg-red-9/10 dark:hover:bg-red-9/20 rounded transition-colors"
                                 title={t('fileBrowser.discardChanges')}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1668,7 +1672,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                                   e.stopPropagation();
                                   gitStatus.handleStage(node.path);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-0.5 text-green-11 hover:text-green-10 hover:bg-green-9/10 dark:hover:bg-green-9/20 rounded transition-all"
+                                className="p-0.5 text-green-11 hover:text-green-10 hover:bg-green-9/10 dark:hover:bg-green-9/20 rounded transition-colors"
                                 title={t('fileBrowser.stageFile')}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1722,6 +1726,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                           }}
                           cwd={cwd}
                           showChanges={true}
+                          showChangeClass
                           onExplain={aiBridge ? handleExplainCompare : undefined}
                           explainDisabled={aiBridge?.isLoading}
                         />
@@ -1749,6 +1754,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                             }`}
                           >
                             <div className="flex items-center gap-2">
+                              {commit.changeClass && <ChangeClassChip cls={commit.changeClass} />}
                               <span className="font-mono text-xs text-brand">{commit.shortHash}</span>
                               <span className="text-xs text-foreground-subtle" data-tooltip={commit.date}>
                                 {commit.relativeDate} · {formatDateTime(commit.date)}

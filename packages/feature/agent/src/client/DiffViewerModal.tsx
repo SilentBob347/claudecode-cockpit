@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Effect } from 'effect';
 import { useEffectQuery } from '@cockpit/effect-react';
-import { Portal, blurActiveElement, MenuContainerProvider } from '@cockpit/shared-ui';
+import { Portal, blurActiveElement, ChangeClassChip, MenuContainerProvider } from '@cockpit/shared-ui';
+import { classifyPath, classifyFiles, type ChangeClass } from '@cockpit/shared-utils';
 import { COLUMN_HEADER_ROW } from './columnHeaderRow';
 import { X, PanelLeft, Wrench, Maximize, Minimize } from 'lucide-react';
 // Tech debt: DiffView / GitFileTree are generic renderers used by both
@@ -27,7 +28,6 @@ import {
   type GitFileNode,
 } from '@cockpit/feature-explorer';
 import { loadSnapshotDiffsForToolIds, type SnapshotDiffDto } from './effect/snapshotClient';
-import { classifyPath, classifyFiles, type ChangeClass } from './changeClass';
 import type { ToolCallInfo } from './types';
 import { isMutatingToolName } from '../shared/toolMutation';
 
@@ -62,8 +62,6 @@ interface CallFile {
   /** Changed in the same commit but NOT declared by the tool — likely another
    *  concurrent session / external process (best-effort attribution). */
   external?: boolean;
-  /** Heuristic: this file is a test / docs file (null = regular code). */
-  fileClass?: ChangeClass | null;
 }
 
 /** One tool call = one snapshot commit (or one legacy pseudo-call). */
@@ -147,7 +145,6 @@ function callsFromSnapshots(diffs: SnapshotDiffDto[]): CallEntry[] {
         // Attribution is best-effort: only meaningful when the tool declared
         // target files (Edit/Write); Bash declares nothing → no marking.
         external: declared.size > 0 && !declared.has(f.path),
-        fileClass: classifyPath(f.path),
       })),
     };
   });
@@ -215,7 +212,7 @@ function callsFromToolParams(toolCalls: ToolCallInfo[], cwd?: string): CallEntry
           subject: `[Edit] ${path}`,
           legacy: true,
           changeClass: classifyPath(path),
-          files: [{ path, status: 'modified', old_string: input.old_string, new_string: input.new_string, fileClass: classifyPath(path) }],
+          files: [{ path, status: 'modified', old_string: input.old_string, new_string: input.new_string }],
         });
       }
     } else if (tc.name === 'Write') {
@@ -228,7 +225,7 @@ function callsFromToolParams(toolCalls: ToolCallInfo[], cwd?: string): CallEntry
           subject: `[Write] ${path}`,
           legacy: true,
           changeClass: classifyPath(path),
-          files: [{ path, status: 'added', old_string: '', new_string: input.content, fileClass: classifyPath(path) }],
+          files: [{ path, status: 'added', old_string: '', new_string: input.content }],
         });
       }
     }
@@ -275,21 +272,6 @@ function LineStatsBadge({ additions, deletions }: { additions: number; deletions
     <span className="flex items-center gap-1 font-mono">
       <span className="text-green-11">+{additions}</span>
       <span className="text-red-11">-{deletions}</span>
-    </span>
-  );
-}
-
-/** Subdued chip marking a non-critical (test-only / docs-only) change. */
-function ChangeClassChip({ cls }: { cls: ChangeClass }) {
-  return (
-    <span
-      className={`text-[10px] px-1 py-px rounded flex-shrink-0 ${
-        cls === 'test'
-          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400/80'
-          : 'bg-sky-500/15 text-sky-600 dark:text-sky-400/80'
-      }`}
-    >
-      {cls}
     </span>
   );
 }
@@ -543,16 +525,12 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                   }`}
                 >
                   <div className="flex items-center gap-2">
+                    {call.changeClass && <ChangeClassChip cls={call.changeClass} />}
                     {call.shortHash && (
                       <span className="font-mono text-xs text-brand">{call.shortHash}</span>
                     )}
                     {call.timestamp !== undefined && (
                       <span className="text-xs text-foreground-subtle">{formatCallTime(call.timestamp)}</span>
-                    )}
-                    {call.changeClass && (
-                      <span className="ml-auto">
-                        <ChangeClassChip cls={call.changeClass} />
-                      </span>
                     )}
                   </div>
                   <div className="text-sm text-foreground whitespace-pre-wrap break-words mt-0.5" data-tooltip={callSubject(call)}>
@@ -647,13 +625,13 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                         }}
                         cwd={cwd || ''}
                         showChanges={true}
+                        showChangeClass
                         renderActions={(node) => {
                           if (node.isDirectory) return null;
                           const file = node.file as CallFile | undefined;
                           if (!file) return null;
                           return (
                             <>
-                              {file.fileClass && <ChangeClassChip cls={file.fileClass} />}
                               {file.external && (
                                 <span
                                   className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-shrink-0"

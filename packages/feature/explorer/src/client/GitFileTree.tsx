@@ -2,8 +2,8 @@
 
 import React, { useCallback, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileContextMenu, useFileContextMenu } from '@cockpit/shared-ui';
-import { FileIcon } from '@cockpit/shared-ui';
+import { ChangeClassChip, FileContextMenu, FileIcon, useFileContextMenu } from '@cockpit/shared-ui';
+import { classifyPath } from '@cockpit/shared-utils';
 
 // ============================================================================
 // Types
@@ -57,6 +57,8 @@ interface GitFileTreeItemProps {
   onToggle: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, path: string, isDirectory: boolean) => void;
   showChanges?: boolean;
+  showChangeClass?: boolean;
+  hideIndicatorsOnHover?: boolean;
   renderActions?: (node: GitFileNode<unknown>) => ReactNode;
 }
 
@@ -69,6 +71,8 @@ const GitFileTreeItem = React.memo(function GitFileTreeItem({
   onToggle,
   onContextMenu,
   showChanges = false,
+  showChangeClass = false,
+  hideIndicatorsOnHover = false,
   renderActions,
 }: GitFileTreeItemProps) {
   const isSelected = selectedPath === node.path;
@@ -114,6 +118,8 @@ const GitFileTreeItem = React.memo(function GitFileTreeItem({
             onToggle={onToggle}
             onContextMenu={onContextMenu}
             showChanges={showChanges}
+            showChangeClass={showChangeClass}
+            hideIndicatorsOnHover={hideIndicatorsOnHover}
             renderActions={renderActions}
           />
         ))}
@@ -134,14 +140,26 @@ const GitFileTreeItem = React.memo(function GitFileTreeItem({
       <span className={`text-sm flex-1 truncate ${isSelected ? 'text-brand' : 'text-foreground'}`} data-tooltip={node.path}>
         {node.name}
       </span>
-      {node.status && <StatusIcon status={node.status} />}
+      {showChangeClass && (() => {
+        const changeClass = classifyPath(node.path);
+        return changeClass ? (
+          <span className={hideIndicatorsOnHover ? 'group-hover:hidden' : undefined}>
+            <ChangeClassChip cls={changeClass} />
+          </span>
+        ) : null;
+      })()}
+      {renderActions && renderActions(node)}
+      {node.status && (
+        <span className={hideIndicatorsOnHover ? 'group-hover:hidden' : undefined}>
+          <StatusIcon status={node.status} />
+        </span>
+      )}
       {showChanges && node.additions !== undefined && node.deletions !== undefined && (
-        <>
+        <span className={`contents ${hideIndicatorsOnHover ? 'group-hover:hidden' : ''}`}>
           <span className="text-xs text-green-11">+{node.additions}</span>
           <span className="text-xs text-red-11">-{node.deletions}</span>
-        </>
+        </span>
       )}
-      {renderActions && renderActions(node)}
     </div>
   );
 });
@@ -158,6 +176,10 @@ export interface GitFileTreeProps {
   onToggle: (path: string) => void;
   cwd: string;
   showChanges?: boolean;
+  /** Mark test and docs files using the shared change-class convention. */
+  showChangeClass?: boolean;
+  /** Hide status, stats, and change-class indicators while row actions are visible. */
+  hideIndicatorsOnHover?: boolean;
   renderActions?: (node: GitFileNode<unknown>) => ReactNode;
   emptyMessage?: string;
   className?: string;
@@ -176,6 +198,8 @@ export function GitFileTree({
   onToggle,
   cwd,
   showChanges = false,
+  showChangeClass = false,
+  hideIndicatorsOnHover = false,
   renderActions,
   emptyMessage,
   className,
@@ -207,6 +231,8 @@ export function GitFileTree({
           onToggle={onToggle}
           onContextMenu={showContextMenu}
           showChanges={showChanges}
+          showChangeClass={showChangeClass}
+          hideIndicatorsOnHover={hideIndicatorsOnHover}
           renderActions={renderActions}
         />
       ))}
