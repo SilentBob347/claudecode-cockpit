@@ -557,6 +557,19 @@ export function ProjectSidebar({
           onMarkRead={markScheduledRead}
           onUpdateTask={updateScheduledTask}
         />
+        {/* Notes */}
+        <button
+          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-hover transition-colors ${
+            collapsed ? 'justify-center' : ''
+          }`}
+          onClick={() => onOpenNote()}
+          title={collapsed ? t('workspace.notes') : undefined}
+        >
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          {!collapsed && <span className="text-sm">{t('workspace.notes')}</span>}
+        </button>
         {/* Skills */}
         <button
           className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-hover transition-colors ${
@@ -593,19 +606,6 @@ export function ProjectSidebar({
                 that idea without this collision. */}
           <Joystick className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span className="text-sm">{t('workspace.skills')}</span>}
-        </button>
-        {/* Notes */}
-        <button
-          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-hover transition-colors ${
-            collapsed ? 'justify-center' : ''
-          }`}
-          onClick={() => onOpenNote()}
-          title={collapsed ? t('workspace.notes') : undefined}
-        >
-          <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          {!collapsed && <span className="text-sm">{t('workspace.notes')}</span>}
         </button>
         {/* Settings row — the whole row is one click target (opens the
             Settings modal). Help is a secondary action nested inside the
