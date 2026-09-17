@@ -1350,6 +1350,66 @@ code[class*="language-"] .token {
   .session-number-running::after { animation: none; }
 }
 
+/* ---- Chat running status: shimmer sweeping across the text ----
+ *
+ * The gradient is clipped to the glyphs, so the text color itself has to go
+ * transparent — hence the @supports guard: without text clipping the line
+ * keeps its plain muted color instead of vanishing.
+ *
+ * Every descendant inherits the transparent color and shows the parent's
+ * gradient through its glyphs. A child that sets its own `text-*` color paints
+ * over the gradient and breaks the sweep at that span, so keep children
+ * colorless.
+ *
+ * The band is orange, the same "running" accent as the session-number spinner
+ * above, so both running indicators read as one signal. Light theme uses the
+ * vivid orange-9: its orange-11 is a 35%-lightness brown that barely lifts
+ * off grey text. The band has a flat core (42-58%) rather than a single peak,
+ * so the highlight actually reaches full strength across a few glyphs.
+ *
+ * Only background-position animates: repaint of this line, no React render,
+ * and the per-second elapsed tick (a text-node change) does not restart it.
+ */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .text-shimmer {
+    --shimmer-highlight: var(--orange-9);
+    color: transparent;
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--muted-foreground) / 0.8) 0%,
+      hsl(var(--muted-foreground) / 0.8) 32%,
+      hsl(var(--shimmer-highlight)) 42%,
+      hsl(var(--shimmer-highlight)) 58%,
+      hsl(var(--muted-foreground) / 0.8) 68%,
+      hsl(var(--muted-foreground) / 0.8) 100%
+    );
+    background-size: 350% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: text-shimmer-sweep 4.6s ease-in-out infinite;
+  }
+  .dark .text-shimmer { --shimmer-highlight: var(--orange-11); }
+}
+
+/* 100% -> 0% moves the band left to right; it starts and ends fully outside
+ * the text, and the tail of the cycle holds there as a pause between sweeps.
+ *
+ * Geometry: with background-size S (as a multiple of the text width), a stop at
+ * fraction f sits at f*S - (S-1)*p. The band edges (32% / 68%) must clear the
+ * text at both ends, which needs S >= 1/(1-0.68) = 3.125 — hence 350%. Travel
+ * distance is (S-1) widths, so the duration scales with S: 60%-of-4s at 300%
+ * becomes 65%-of-4.6s (~3s sweep, 1.6s pause) at 350% to keep the same speed. */
+@keyframes text-shimmer-sweep {
+  0%   { background-position: 100% 0; }
+  65%  { background-position: 0% 0; }
+  100% { background-position: 0% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-shimmer { animation: none; }
+}
+
 /* ---- Chat jump flash: highlight the BUBBLE, not the row ----
  *
  * The class lands on the row wrapper, because `[data-message-id]` is the only

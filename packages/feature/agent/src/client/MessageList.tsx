@@ -1119,7 +1119,7 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
                     <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center" aria-hidden="true">
                       <EngineIcon engine={runningEngine} className="h-4 w-4" />
                     </span>
-                    <span className="text-sm text-muted-foreground/80">
+                    <span className="text-sm text-muted-foreground/80 text-shimmer">
                       {runningEngineLabel} running {elapsedLabel} · processing{' '}
                       <AnimatedProgressNumber value={liveOutputTokens?.outputTokens ?? 0} />
                     </span>
