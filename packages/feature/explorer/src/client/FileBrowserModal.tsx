@@ -248,6 +248,17 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
     return out;
   }, [gitStatus.status]);
   const gitHistory = useGitHistory({ cwd, addToRecentFiles: fileTree.addToRecentFiles });
+  // Totals for the compare-mode header. Binary files report 0/0 from numstat,
+  // so they add nothing here, matching their per-row "+0 -0".
+  const compareTotals = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    for (const f of gitHistory.compareFiles) {
+      additions += f.additions;
+      deletions += f.deletions;
+    }
+    return { additions, deletions };
+  }, [gitHistory.compareFiles]);
 
   // Compare mode has no commit pair to name — the head side is hardcoded to
   // HEAD server-side (branch-diff.ts). Spell the range two-dot: the route runs
@@ -1709,9 +1720,13 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                       <div className="p-4 text-center text-muted-foreground text-sm">{t('fileBrowser.noDiffFiles')}</div>
                     ) : (
                       <>
-                        <div className="px-3 py-2 border-b border-border">
-                          <span className="text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                             {t('fileBrowser.nFilesChanged', { count: gitHistory.compareFiles.length, branch: gitHistory.compareBaseBranch })}
+                          </span>
+                          <span className="flex flex-shrink-0 items-center gap-1.5 text-xs tabular-nums">
+                            <span className="text-green-11">+{compareTotals.additions}</span>
+                            <span className="text-red-11">-{compareTotals.deletions}</span>
                           </span>
                         </div>
                         <GitFileTree
