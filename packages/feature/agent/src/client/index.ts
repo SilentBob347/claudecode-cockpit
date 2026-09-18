@@ -39,6 +39,9 @@ export { SlashCommandMenu } from './SlashCommandMenu';
 export { getSlashCommands, slashCommands, getMarkdown, type SlashCommand } from './slashCommands';
 export { buildResumeCommand } from './resumeCommand';
 
+// Engine queries the app integrator needs (workspace seeds a new ollama tab with this)
+export { loadOllamaDefaultModel } from './effect/agentClient';
+
 // Context
 export { ChatProvider, useChatContext, useChatContextOptional } from './ChatContext';
 

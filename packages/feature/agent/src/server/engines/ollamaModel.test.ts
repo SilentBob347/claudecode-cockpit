@@ -25,8 +25,10 @@ const CWD = '/Users/x/glasser';
 
 let home: string;
 let ollamaSpec: typeof import('./ollama').ollamaSpec;
+let resolveDefaultOllamaModel: typeof import('./ollama').resolveDefaultOllamaModel;
 let recordSessionModel: typeof import('./sessionModel').recordSessionModel;
 let rememberOllamaLastModel: typeof import('@cockpit/shared-utils').rememberOllamaLastModel;
+let readOllamaLastModel: typeof import('@cockpit/shared-utils').readOllamaLastModel;
 let writeOllamaStoredConfig: typeof import('@cockpit/shared-utils').writeOllamaStoredConfig;
 
 /** Run the engine's preflight over a request and report what it settled on. */
@@ -41,9 +43,9 @@ beforeAll(async () => {
   // COCKPIT_HOME is read at paths.ts module load, so set it before importing anything.
   home = mkdtempSync(join(tmpdir(), 'cockpit-home-'));
   process.env.COCKPIT_HOME = home;
-  ({ ollamaSpec } = await import('./ollama'));
+  ({ ollamaSpec, resolveDefaultOllamaModel } = await import('./ollama'));
   ({ recordSessionModel } = await import('./sessionModel'));
-  ({ rememberOllamaLastModel, writeOllamaStoredConfig } = await import('@cockpit/shared-utils'));
+  ({ rememberOllamaLastModel, readOllamaLastModel, writeOllamaStoredConfig } = await import('@cockpit/shared-utils'));
 });
 
 afterAll(() => {
@@ -147,5 +149,41 @@ describe('session model record', () => {
     await recordSessionModel('kimi', CWD, 'shared-id', 'k3');
     expect(await readSessionModel('kimi', CWD, 'shared-id')).toBe('k3');
     expect(await readSessionModel('ollama', CWD, 'shared-id')).toBeUndefined();
+  });
+});
+
+/**
+ * The UI asks this the moment a new ollama tab is opened, so that the picker shows the model
+ * the engine would have chosen anyway instead of "Select model".
+ */
+describe('resolveDefaultOllamaModel — what a new chat opens on', () => {
+  it('is the model last used, when the machine still has it', async () => {
+    await rememberOllamaLastModel('gpt-oss:20b');
+    expect(await resolveDefaultOllamaModel()).toEqual({ ok: true, model: 'gpt-oss:20b' });
+  });
+
+  it('falls to the first installed when the last used is gone', async () => {
+    await rememberOllamaLastModel('qwen3.5:35b');
+    expect(await resolveDefaultOllamaModel()).toEqual({ ok: true, model: 'qwen3.6:35b' });
+  });
+
+  it('records nothing — asking is not using', async () => {
+    await resolveDefaultOllamaModel();
+    expect(await readOllamaLastModel()).toBeUndefined();
+  });
+
+  it('reports why rather than guessing when the server is unreachable', async () => {
+    catalog = unreachable('Cannot reach the Ollama server at http://127.0.0.1:1 (ECONNREFUSED).');
+    const choice = await resolveDefaultOllamaModel();
+    expect(choice.ok).toBe(false);
+    if (choice.ok) return;
+    expect(choice.reason).toContain('ECONNREFUSED');
+  });
+
+  it('agrees with what preflight would pick for the same machine', async () => {
+    await rememberOllamaLastModel('deepseek-r1:7b');
+    const choice = await resolveDefaultOllamaModel();
+    const { model } = await preflight(ask({ sessionId: 'brand-new' }));
+    expect(choice).toEqual({ ok: true, model });
   });
 });

@@ -411,6 +411,22 @@ const startOllamaRaw = (): Effect.Effect<
   })
 
 /**
+ * The model a new ollama chat should open on — the server's own answer (see
+ * /api/ollama/default-model), not a guess assembled from the model list.
+ *
+ * Never fails: a tab is being seeded, and ollama being down is not a reason to refuse to
+ * open one. The picker simply stays empty, and the real reason arrives with full context if
+ * a message is actually sent.
+ */
+export const loadOllamaDefaultModel = (): Effect.Effect<string | undefined, never> =>
+  Effect.promise(async () => {
+    const res = await fetch("/api/ollama/default-model")
+    if (!res.ok) return undefined
+    const data = (await res.json()) as { model?: string }
+    return data.model || undefined
+  }).pipe(Effect.orElseSucceed(() => undefined))
+
+/**
  * Full flow: fetch → 503 triggers start → fetch again.
  * Collapses the ~40 lines of nested if/await inside OllamaModelPicker into a single Effect.gen.
  */

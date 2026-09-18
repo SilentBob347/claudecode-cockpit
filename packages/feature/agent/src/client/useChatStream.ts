@@ -640,11 +640,11 @@ export function useChatStream(
       const canDropHistory = engine === 'ollama' || isApiKeyEngine || isClaudeEngine || engine === 'codex';
 
       try {
-        // Ollama requires a model to be selected
-        if (engine === 'ollama' && !ollamaModel) {
-          throw new Error('Please select an Ollama model first (click the model picker above)');
-        }
-
+        // No client-side model guard for ollama. Dispatch resolves one itself — this session's,
+        // else the last used, else the first installed — and when it cannot, it answers with
+        // the reason (server unreachable, nothing pulled), which is the message worth showing.
+        // The old guard shadowed all of that with "select a model first" even when the real
+        // problem was that ollama wasn't running.
         const apiUrl = engine === 'codex' ? '/api/chat/codex' : engine === 'kimi' ? '/api/chat/kimi' : engine === 'ollama' ? '/api/chat/ollama' : engine === 'deepseek' ? '/api/chat/deepseek' : engine === 'glm' ? '/api/chat/glm' : '/api/chat';
         // POST only STARTS the detached run and returns its runKey — no SSE body to read.
         // The ws consumer (above) tails /ws/session-stream and drives the UI from here.

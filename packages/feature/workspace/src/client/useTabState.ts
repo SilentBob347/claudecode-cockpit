@@ -14,6 +14,7 @@ import {
   markScheduledTasksReadBySession,
 } from './effect/stateClient';
 import { loadActiveTabTarget, saveActiveTabTarget, type ActiveTabTarget } from './effect/activeTabStorage';
+import { loadOllamaDefaultModel } from '@cockpit/feature-agent';
 import { createLatestTaskRunner, type LatestTaskRunner } from './latestTaskRunner';
 
 // ============================================
@@ -778,6 +779,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       return newTabs;
     });
     setActiveTabId(newTab.id);
+    return newTab.id;
   }, [activeTabId]);
 
   // Close tab
@@ -894,9 +896,32 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     addTab(initialCwd, undefined, 'New GLM Chat', { engine: 'glm', glmModel: 'glm-5.3', appendToEnd: true });
   }, [initialCwd, addTab]);
 
-  // Create new Ollama tab (appended to end)
-  const handleNewOllamaTab = useCallback((model?: string) => {
-    addTab(initialCwd, undefined, model ? `New Ollama (${model})` : 'New Ollama Chat', { engine: 'ollama', ollamaModel: model, appendToEnd: true });
+  /**
+   * The ollama model last chosen in this browser. Kimi and GLM seed a new tab with a literal
+   * because a hosted provider's ids are stable; ollama's are whatever the machine pulled, so
+   * the value has to come from somewhere real — this ref within a session, the server's
+   * /api/ollama/default-model across reloads.
+   */
+  const lastOllamaModelRef = useRef<string | undefined>(undefined);
+
+  // Create new Ollama tab (appended to end).
+  //
+  // The tab opens IMMEDIATELY on whatever is already known, and the server's answer fills it
+  // in when it lands. Awaiting first would put a network call — one that waits up to 3s on an
+  // ollama that isn't running — in front of a click that should feel instant; leaving it out
+  // entirely is what made every new ollama chat open on "Select model".
+  const handleNewOllamaTab = useCallback(() => {
+    const tabId = addTab(initialCwd, undefined, 'New Ollama Chat', {
+      engine: 'ollama',
+      ollamaModel: lastOllamaModelRef.current,
+      appendToEnd: true,
+    });
+    void BrowserRuntime.runPromise(loadOllamaDefaultModel()).then((model) => {
+      if (!model) return; // ollama unreachable — the picker stays empty and says so on send
+      lastOllamaModelRef.current = model;
+      // Only seed: a user who picked one in the meantime outranks the default.
+      setTabs((prev) => prev.map((t) => (t.id === tabId && !t.ollamaModel ? { ...t, ollamaModel: model } : t)));
+    });
   }, [initialCwd, addTab]);
 
   // Record a tab's engine. Fired by Chat's backfill when the tab was opened without one and
@@ -910,8 +935,10 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     );
   }, []);
 
-  // Update Ollama model for a tab
+  // Update Ollama model for a tab. Also the freshest answer to "what model does this user
+  // want" — the next new tab opens on it without waiting for a round trip.
   const updateTabOllamaModel = useCallback((tabId: string, model: string) => {
+    lastOllamaModelRef.current = model;
     setTabs((prev) =>
       prev.map((tab) =>
         tab.id === tabId ? { ...tab, ollamaModel: model } : tab
