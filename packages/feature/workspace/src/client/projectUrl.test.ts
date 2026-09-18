@@ -7,6 +7,20 @@ describe('buildProjectUrl', () => {
       .toBe('/project?cwd=%2Fwork%2Fa%20b&sessionId=session%2F1&view=agent');
   });
 
+  it('reveals a file in the Explorer, panel included', () => {
+    expect(buildProjectUrl('/bots/robert', { file: 'BOT.md' }))
+      .toBe('/project?cwd=%2Fbots%2Frobert&file=BOT.md&view=explorer');
+  });
+
+  it('emits one view even when both intents were frozen on the same project', () => {
+    // A session link lands on an unmounted project, then the Bots panel opens
+    // that same directory: two `view` values would parse as string[] and match
+    // neither panel.
+    const url = buildProjectUrl('/bots/robert', { sessionId: 's1', switchToAgent: true, file: 'BOT.md' });
+    expect(url.match(/view=/g)).toHaveLength(1);
+    expect(url).toContain('view=explorer');
+  });
+
   it('distinguishes a blank active tab from an unspecified active tab', () => {
     expect(buildProjectUrl('/work/project', { blank: true }))
       .toBe('/project?cwd=%2Fwork%2Fproject&newChat=1');

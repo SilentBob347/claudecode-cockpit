@@ -32,6 +32,217 @@ export interface Post {
 
 export const posts: Post[] = [
   {
+    slug: 'persistent-subagents-you-can-tag',
+    date: '2026-09-18',
+    keywords: [
+      'persistent AI agent',
+      'persistent subagent',
+      'file based agent memory',
+      'local AI agent',
+      'agent memory Markdown',
+      'AI bot directory',
+      'OpenCockpit Bots',
+      '持久化子代理',
+      '本地 Agent 记忆',
+      'Bot 长期上下文',
+      '文件原生 Agent',
+    ],
+    content: {
+      en: {
+        title: 'Bots: Persistent Subagents You Can Tag into Any Task',
+        description:
+          'Create file-native subagents with durable, reviewable context, then tag them into any OpenCockpit task with @name.',
+        readingTime: '4 min read',
+        body: `A subagent is useful because it gets work out of your main thread. It is also forgetful: the next one usually starts from a blank page.
+
+OpenCockpit Bots keep the first property and change the second. A Bot is a persistent, file-native subagent. It has a name, an identity, explicit long-term context, and the Skills it knows how to use. Tag it with \`@name\`; it works in a separate session and brings the result back with a link to the full transcript.
+
+## A Bot is a directory
+
+There is no hosted agent object and no hidden memory database. A Bot is an ordinary directory:
+
+\`\`\`text
+product/
+├── BOT.md
+├── identity/
+├── relationships/
+├── memory/
+├── projects/
+├── commitments/
+└── evidence/
+\`\`\`
+
+\`BOT.md\` says who the Bot is, which files it should read, which Skills it has, and where updates belong. The other files are plain Markdown. You can read them, edit them, put them in Git, move them to another machine, or stop using Cockpit without exporting anything.
+
+Create one with the built-in Skill:
+
+\`\`\`text
+/bot create a product Bot that maintains roadmap decisions and commitments
+\`\`\`
+
+After reviewing the proposed name and directory, register it from the Bots panel or directly from its \`BOT.md\`.
+
+## Tag the specialist, not another blank agent
+
+\`\`\`text
+@product summarize what changed in the roadmap this week
+\`\`\`
+
+The current agent turns the conversation into a self-contained brief, starts a separate session in the current project, and hands that session the shared Bot contract plus the Bot's \`BOT.md\` path. The child reads only the context it needs, does the work, and reports back. The main chat gets the conclusion and a link; the child session keeps the complete transcript and can be continued directly.
+
+Tag several Bots in one message and OpenCockpit starts their sessions before waiting:
+
+\`\`\`text
+@product summarize the roadmap changes
+
+@finance check the Q3 budget against them
+\`\`\`
+
+This is why the object is called a **Bot**, while \`@name\` is the action: you tag a persistent specialist into a task.
+
+## Memory is deliberate
+
+The easiest memory system to demo is one that records everything. It is also the fastest way to fill an agent with guesses, stale facts, copied secrets, and accidental instructions.
+
+Bots default to read-only. They update long-term context only when you explicitly ask them to remember, update, correct, or forget something:
+
+\`\`\`text
+@product remember that mobile onboarding moved to Q4
+\`\`\`
+
+Otherwise the Bot can propose a short “Could be recorded” list for approval. Recorded entries carry a confirmation date, source, authority, and status. A user-confirmed fact outranks an inference; replaced conclusions are marked as superseded instead of disappearing; credentials are skipped entirely.
+
+Writes use a cooperative lock, while reads remain concurrent. Every turn lists the Bot files it read and changed, so “what was this answer based on?” has a concrete answer.
+
+## Skills stay separate from identity
+
+A Skill is a reusable way to do something. A Bot is the persistent specialist deciding when that way applies. Attach one without copying it:
+
+\`\`\`text
+@product attach /absolute/path/to/SKILL.md
+\`\`\`
+
+That adds a reference to the Bot's Skills table. It does not duplicate files, credentials, or software, and it does not create a global slash command.
+
+## Long-term context needs maintenance
+
+Memory ages. Commitments finish, numbers expire, and two correct statements from different months can become a contradiction. Ask a Bot to inspect itself:
+
+\`\`\`text
+@product review its memory
+\`\`\`
+
+The Bot produces a numbered review covering stale entries, contradictions, dangling commitments, missing sources, broken Skills, duplicated information, and context that has grown too large. It saves the report under \`.reviews/\` so you can choose findings in the child session or resume from any chat. Nothing in long-term memory changes until you select rows to apply.
+
+## Persistent does not mean autonomous
+
+A Bot does not wake itself up, silently absorb every chat, or run as a background service. If a commitment genuinely needs proactive follow-up, a Cockpit Scheduled Task can send the same \`@name\` prompt on a schedule. The normal case stays simpler: summon the right specialist when you need it, and keep its memory explicit.
+
+[Read the Bots documentation](/en/docs/agent/bots/) or update OpenCockpit and type \`/bot\` to create your first one.
+
+---
+
+**Try it:** \`npm i -g @surething/cockpit\` · [GitHub](https://github.com/Surething-io/cockpit) · [Try Online](/try)`,
+      },
+      zh: {
+        title: 'Bot：一个可以随时 @ 进任务的持久化子代理',
+        description:
+          '用普通文件创建拥有长期、可审阅上下文的子代理，再用 @name 把它叫进任意 OpenCockpit 任务。',
+        readingTime: '阅读约 4 分钟',
+        body: `子代理好用，因为它把一块工作从主线对话里拿走了。子代理也容易忘：下一个通常又从白纸开始。
+
+OpenCockpit Bot 保留了前一个特点，改变了后一个。Bot 是持久化、文件原生的子代理：有名字、身份、显式长期上下文，也知道自己会用哪些 Skills。用 \`@name\` 把它叫进任务；它在独立会话中工作，再带着结论和完整会话链接回来。
+
+## Bot 就是一个目录
+
+没有托管在云上的 Agent 对象，也没有藏起来的记忆数据库。Bot 是一个普通目录：
+
+\`\`\`text
+product/
+├── BOT.md
+├── identity/
+├── relationships/
+├── memory/
+├── projects/
+├── commitments/
+└── evidence/
+\`\`\`
+
+\`BOT.md\` 说明它是谁、先读哪些文件、会哪些 Skills、各类更新该写去哪里。其他内容都是普通 Markdown。你可以读、改、放进 Git、搬到另一台机器，也可以不再使用 Cockpit，无须先导出任何东西。
+
+用内置 Skill 创建：
+
+\`\`\`text
+/bot 创建一个维护路线图决策与承诺的 product Bot
+\`\`\`
+
+确认用途、名称和目录后，从 Bots 面板注册，或直接打开它的 \`BOT.md\` 添加。
+
+## 叫进一个专家，不是再开一张白纸
+
+\`\`\`text
+@product 总结本周路线图变化
+\`\`\`
+
+当前 Agent 先把对话整理成一份自包含 brief，再以当前项目为工作目录创建独立会话，把通用 Bot 契约和该 Bot 的 \`BOT.md\` 路径交给子会话。子会话只读这次需要的上下文，完成工作后回报。主会话拿到结论和链接；完整过程留在子会话里，可以随时打开续问。
+
+一条消息可以同时叫多个 Bot，OpenCockpit 会先启动各自的会话再等待：
+
+\`\`\`text
+@product 总结路线图变化
+
+@finance 对照这些变化核对 Q3 预算
+\`\`\`
+
+所以对象叫 **Bot**，\`@name\` 才是动作：你把一个持久专家 tag 进当前任务。
+
+## 记忆必须是有意的
+
+最容易演示的记忆系统是“什么都记”。它也最容易让 Agent 堆满猜测、过期事实、被复制进来的密钥和偶然出现的指令。
+
+Bot 默认只读。只有你明确要求记住、更新、纠正或删除时，它才更新长期上下文：
+
+\`\`\`text
+@product 记住：移动端 onboarding 已经移到 Q4
+\`\`\`
+
+否则 Bot 只会列一份 “Could be recorded”，留给你确认。每条记录带确认日期、来源、权威等级和状态；用户确认的事实高于模型推断；被替代的结论会标成 superseded，而不是悄悄消失；凭证则完全跳过。
+
+写入使用协作锁，读取仍可以并发。每轮都会列出读过和改过的 Bot 文件，因此“这个回答依据了什么”有可核对的答案。
+
+## Skill 与身份分开
+
+Skill 是一种可复用的做法；Bot 是一个持久专家，知道这种做法何时该用。不复制文件，直接关联：
+
+\`\`\`text
+@product 装上 /absolute/path/to/SKILL.md
+\`\`\`
+
+它只在 Bot 的 Skills 表增加一行，不复制文件、凭证或软件，也不会创建全局斜杠命令。
+
+## 长期上下文也需要保养
+
+记忆会老化：承诺会完成，数字会过期，两句在不同月份都正确的话后来可能变成矛盾。让 Bot 检查自己：
+
+\`\`\`text
+@product 复盘一下
+\`\`\`
+
+Bot 会输出编号清单，检查过期条目、矛盾、悬空承诺、缺少来源、失效 Skill、重复内容和规模过大的上下文。报告保存在 \`.reviews/\`，你可以在子会话里选行，也可以从任何聊天恢复。选定要应用的行之前，长期记忆不会改变。
+
+## 持久不等于自主运行
+
+Bot 不会自己醒来，不会悄悄吸收每段聊天，也不是后台服务。某项承诺确实需要主动追踪时，可以让 Cockpit 定时任务按计划发送同样的 \`@name\` 提示词。更常见的情况保持简单：需要时叫来正确的专家，它的记忆始终显式可见。
+
+[查看 Bots 文档](/zh/docs/agent/bots/)，或更新 OpenCockpit 后输入 \`/bot\` 创建第一个 Bot。
+
+---
+
+**立即尝试：** \`npm i -g @surething/cockpit\` · [GitHub](https://github.com/Surething-io/cockpit) · [在线体验](/try)`,
+      },
+    },
+  },
+  {
     slug: 'find-and-delegate-sessions',
     date: '2026-09-14',
     keywords: [

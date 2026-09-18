@@ -28,12 +28,13 @@ import { FileTree, type GitStatusMap, type GitStatusCode } from './FileTree';
 import { GitFileTree, buildGitFileTree, collectFilesUnderNode } from './GitFileTree';
 import { MenuContainerProvider } from '@cockpit/shared-ui';
 import { CodeViewer } from '@cockpit/feature-explorer';
-import { isMarkdownFile, isHtmlFile, isJsonFile, isCsvFile, isSkillFile, formatAsHumanReadable, THEME_JSON_COLORS, JsonCollapseContext } from './toolCallUtils';
+import { isMarkdownFile, isHtmlFile, isJsonFile, isCsvFile, isSkillFile, isBotFile, formatAsHumanReadable, THEME_JSON_COLORS, JsonCollapseContext } from './toolCallUtils';
 import { CsvTableView } from './CsvTableView';
 import { ExternalLink, BookmarkPlus, SquareTerminal } from 'lucide-react';
 import { toExternalBrowserAppUrl, toLocalAppUrl } from '@cockpit/shared-utils';
 import { useAddHtmlApp } from './htmlApps/useAddHtmlApp';
-import { useAddSkill } from './skills/useAddSkill';
+import { useAddSkill } from './registry/useAddSkill';
+import { useAddBot } from './registry/useAddBot';
 import { buildTreeFromPaths, collectAllDirPaths, mergeFileTree } from './fileBrowser/utils';
 import { InteractiveMarkdownPreview } from '@cockpit/feature-explorer';
 import { HtmlAppFrame } from './HtmlAppFrame';
@@ -105,6 +106,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
   }, [aiBridge, t]);
   const addHtmlApp = useAddHtmlApp();
   const addSkill = useAddSkill();
+  const addBot = useAddBot();
   const { activeView, onViewChange } = useSwipeContext();
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   // Editor mode in the right panel of tree / search / recent tabs:
@@ -2042,18 +2044,19 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                               </button>
                             );
                           })()}
-                          {/* Register this SKILL.md in the skills registry (skills.json) — the
+                          {/* Register this SKILL.md (skills.json) or BOT.md (bot.json) — the
                               markdown analogue of the HTML button below. Only for files literally
                               named SKILL.md, since parseSkillMd derives the `/slash` trigger from
                               the parent directory. Same relative → absolute step as HTML. */}
-                          {fileTree.fileContent?.type === 'text' && isSkillFile(fileTree.selectedPath || '') && (() => {
+                          {fileTree.fileContent?.type === 'text' && (isSkillFile(fileTree.selectedPath || '') || isBotFile(fileTree.selectedPath || '')) && (() => {
                             const sp = fileTree.selectedPath || '';
                             const abs = sp.startsWith('/') ? sp : cwd ? `${cwd.replace(/\/$/, '')}/${sp}` : sp;
+                            const bot = isBotFile(sp);
                             return (
                               <button
-                                onClick={() => addSkill(abs)}
+                                onClick={() => void (bot ? addBot(abs) : addSkill(abs))}
                                 className="px-1.5 py-0.5 text-xs rounded transition-colors text-muted-foreground hover:bg-hover flex items-center"
-                                title={t('skills.addTooltip')}
+                                title={t(bot ? 'bots.addTooltip' : 'skills.addTooltip')}
                               >
                                 <BookmarkPlus className="w-3.5 h-3.5" />
                               </button>

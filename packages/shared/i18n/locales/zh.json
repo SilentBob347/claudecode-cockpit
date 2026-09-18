@@ -221,7 +221,8 @@
     "reloadNow": "刷新",
     "upgradeCommandCopied": "已复制 `cockpit update`",
     "projectNotes": "项目笔记",
-    "closeProject": "关闭项目"
+    "closeProject": "关闭项目",
+    "bots": "机器人"
   },
   "mobile": {
     "useDesktop": "桌面版",
@@ -568,7 +569,7 @@
     "codexResumeFailed": "原会话被其他 Codex 客户端占用，已新建会话，历史未继承",
     "codexResumeFailedPrevious": "原会话",
     "codexResumeFailedNew": "新会话",
-    "placeholder": "输入消息，Enter 发送（Shift+Enter 换行，可粘贴图片；行首 /（主会话）或 @（子代理）唤起命令，支持多行多命令）",
+    "placeholder": "输入消息，Enter 发送（Shift+Enter 换行，可粘贴图片；行首 /（skill）、/@（子代理执行 skill）或 @（子代理执行机器人），支持多行多命令）",
     "placeholderDisabled": "生成中... 可继续输入 (ESC 取消;卡住太久可取消后重发「继续」)",
     "imageSizeLimit": "图片大小超过限制（最大 5MB），当前大小: {{size}}MB",
     "viewGitChanges": "查看 Git 变更",
@@ -1309,5 +1310,28 @@
   "reviewUtils": {
     "adjectives": ["快乐", "勇敢", "安静", "明亮", "温柔", "灵巧", "自由", "清澈", "飞翔", "悠闲", "活泼", "聪慧", "淡定", "机敏", "从容", "坚定", "爽朗", "和煦", "奔放", "沉稳"],
     "nouns": ["熊猫", "海豚", "白鹤", "雪豹", "云雀", "松鼠", "飞鱼", "梅花鹿", "青鸟", "银狐", "猫头鹰", "蜻蜓", "萤火虫", "海龟", "蝴蝶", "金丝猴", "丹顶鹤", "羚羊", "燕子", "企鹅"]
+  },
+  "bots": {
+    "title": "机器人",
+    "search": "搜索机器人",
+    "addExisting": "添加机器人",
+    "addTooltip": "添加为机器人",
+    "emptyNoMatch": "没有匹配的机器人。",
+    "emptyNoBots": "还没有你自己的机器人。",
+    "emptyCreatePrefix": "在聊天里使用",
+    "emptyCreateSuffix": "创建一个。",
+    "emptyAddExisting": "添加已有的机器人目录",
+    "invalid": "无效",
+    "builtin": "内置",
+    "remove": "移除注册",
+    "open": "作为项目打开",
+    "pathPlaceholder": "机器人目录或其 BOT.md 的绝对路径",
+    "addHint": "目录中必须包含 BOT.md，不会改动其中的文件。",
+    "added": "机器人已添加",
+    "alreadyAdded": "已添加过",
+    "removed": "已移除机器人注册，目录文件仍保留。",
+    "loadFailed": "加载机器人失败",
+    "saveFailed": "添加机器人失败",
+    "removeFailed": "移除机器人失败"
   }
 }

@@ -16,8 +16,9 @@ import { MarkdownRenderer } from '@cockpit/shared-ui';
 import { resolveBashCwd } from '@cockpit/shared-utils';
 import { rehypeSourceLines } from '@cockpit/shared-ui';
 import { scrollToHeadingAnchor } from '@cockpit/shared-ui';
-import { isMarkdownFile, isSkillFile, resolveRelativePath } from './toolCallUtils';
-import { useAddSkill } from './skills/useAddSkill';
+import { isBotFile, isMarkdownFile, isSkillFile, resolveRelativePath } from './toolCallUtils';
+import { useAddSkill } from './registry/useAddSkill';
+import { useAddBot } from './registry/useAddBot';
 import type { CodeComment } from '@cockpit/feature-comments';
 import { TocSidebar } from '@cockpit/shared-ui';
 import { ShareReviewToggle } from '@cockpit/feature-review';
@@ -102,6 +103,7 @@ export function InteractiveMarkdownPreview({
   const menuContainer = useMenuContainer();
   const aiBridge = useAIBridge();
   const addSkill = useAddSkill();
+  const addBot = useAddBot();
   const { comments, addComment, updateComment, deleteComment, refresh: refreshComments } = useComments({ cwd, filePath });
   const [isMounted, setIsMounted] = useState(false);
 
@@ -414,19 +416,20 @@ export function InteractiveMarkdownPreview({
           </span>
           <div className="flex items-center gap-3">
             <ShareReviewToggle content={content} sourceFile={sourceFile} />
-            {/* Register this SKILL.md in the skills registry (skills.json) — the
+            {/* Register this SKILL.md (skills.json) or BOT.md (bot.json) — the
                 markdown counterpart of the HTML preview's BookmarkPlus. Only for
                 files literally named SKILL.md; the registry stores absolute paths,
                 and a relative filePath here is anchored to cwd. */}
-            {isSkillFile(filePath) && (
+            {(isSkillFile(filePath) || isBotFile(filePath)) && (
               <button
-                onClick={() => addSkill(
-                  filePath.startsWith('/') || !cwd
+                onClick={() => {
+                  const abs = filePath.startsWith('/') || !cwd
                     ? filePath
-                    : `${cwd.replace(/\/$/, '')}/${filePath}`
-                )}
+                    : `${cwd.replace(/\/$/, '')}/${filePath}`;
+                  void (isBotFile(filePath) ? addBot(abs) : addSkill(abs));
+                }}
                 className="p-1 text-muted-foreground hover:text-foreground hover:bg-hover rounded transition-colors"
-                title={t('skills.addTooltip')}
+                title={t(isBotFile(filePath) ? 'bots.addTooltip' : 'skills.addTooltip')}
               >
                 <BookmarkPlus className="w-4 h-4" />
               </button>

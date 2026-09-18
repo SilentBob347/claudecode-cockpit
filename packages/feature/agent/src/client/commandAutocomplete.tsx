@@ -11,12 +11,12 @@ import {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { onSkillsChanged } from '@cockpit/shared-api';
+import { loadBots, onBotsChanged, onSkillsChanged, type BotInfo } from '@cockpit/shared-api';
 import { BrowserRuntime } from '@cockpit/effect-runtime';
 import { loadSkills as loadSkillsEff, loadSlashCommands } from './effect/agentClient';
 
 // ============================================
-// Shared line-led `/` `@` command autocomplete for plain <textarea> hosts.
+// Shared line-led `/`, `/@`, and `@` autocomplete for plain <textarea> hosts.
 //
 // Extracted from ChatInput so the scheduled-task composer can offer the same
 // menu. Both hosts feed the SAME command+skill list, so adding a builtin or a
@@ -36,7 +36,7 @@ export interface CommandInfo {
   description: string;
   // `'global' | 'project'` (`.claude/commands/*.md`) used to be valid sources;
   // that mechanism was retired with Claude Code's commands convention.
-  source: 'builtin' | 'skill';
+  source: 'builtin' | 'skill' | 'bot';
   // Only present when source === 'skill'
   skillPath?: string;
   argumentHint?: string;
@@ -71,7 +71,7 @@ export interface CommandAutocomplete {
   isOpen: boolean;
   items: CommandInfo[];
   selectedIndex: number;
-  /** The marker the user actually typed (`/` or `@`), for faithful display. */
+  /** The marker the user actually typed (`/`, `/@`, or `@`), for faithful display. */
   marker: string;
   listRef: RefObject<HTMLDivElement | null>;
   selectCommand: (cmd: CommandInfo) => void;
@@ -98,6 +98,7 @@ export function useCommandAutocomplete({
   const [caret, setCaret] = useState(value.length);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [skills, setSkills] = useState<CommandInfo[]>([]);
+  const [bots, setBots] = useState<CommandInfo[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   // Start dismissed when the host opens with pre-filled text (editing an
   // existing scheduled task whose message is exactly `/qa` would otherwise pop
@@ -145,6 +146,21 @@ export function useCommandAutocomplete({
     return onSkillsChanged(loadSkills);
   }, [loadSkills]);
 
+  const refreshBots = useCallback(async () => {
+    const exit = await BrowserRuntime.runPromiseExit(loadBots());
+    if (exit._tag === 'Success') {
+      setBots(exit.value.flatMap((bot: BotInfo) =>
+        bot.valid ? [{ name: `@${bot.name}`, description: bot.description, source: 'bot' as const }] : []));
+    } else {
+      console.error('Failed to load bots:', exit.cause);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshBots();
+    return onBotsChanged(refreshBots);
+  }, [refreshBots]);
+
   // The line containing the caret — commands are line-led, so autocomplete keys
   // off the current line, not the whole (possibly multi-line) input.
   const activeLine = useMemo(() => {
@@ -154,12 +170,12 @@ export function useCommandAutocomplete({
     return { text: value.slice(lineStart, lineEnd), start: lineStart, end: lineEnd };
   }, [value, caret]);
 
-  // The command being typed on the active line: a `/` or `@` marker followed by
+  // The command being typed on the active line: a `/`, `/@`, or `@` marker followed by
   // a partial verb with nothing after it yet (a trailing space starts the body
-  // and dismisses the menu). Marker-agnostic — `@qa` matches the same `/qa` entry.
+  // and dismisses the menu). `@` selects Bots; `/` and `/@` select skills.
   const commandQuery = useMemo(() => {
     // Verb char class kept in sync with the server (slashCommands' COMMAND_LINE_RE).
-    const m = activeLine.text.match(/^\s*([/@])([a-zA-Z0-9-]*)$/);
+    const m = activeLine.text.match(/^\s*(\/@|\/|@)([a-zA-Z0-9-]*)$/);
     return m ? { marker: m[1], verb: m[2].toLowerCase() } : null;
   }, [activeLine.text]);
 
@@ -169,8 +185,9 @@ export function useCommandAutocomplete({
     if (!commandQuery) return [];
     const { verb } = commandQuery;
     const match = (cmd: CommandInfo) => cmd.name.slice(1).toLowerCase().startsWith(verb);
+    if (commandQuery.marker === '@') return bots.filter(match);
     return [...(extraCommands ?? []).filter(match), ...commands.filter(match), ...skills.filter(match)];
-  }, [commandQuery, extraCommands, commands, skills]);
+  }, [commandQuery, extraCommands, commands, skills, bots]);
 
   const isOpen = !dismissed && !!commandQuery && items.length > 0;
 
@@ -199,7 +216,7 @@ export function useCommandAutocomplete({
   }, []);
 
   const selectCommand = useCallback((command: CommandInfo) => {
-    // Preserve the marker the user typed (`/` main session, `@` subagent); only
+    // Preserve the marker the user typed; only
     // replace the command token on the active line, leaving other lines intact.
     const marker = commandQuery?.marker ?? '/';
     const insert = `${marker}${command.name.slice(1)} `;
@@ -285,6 +302,8 @@ export function CommandAutocompleteMenu({ ac, className = '' }: CommandAutocompl
         return t('common.builtin');
       case 'skill':
         return 'Skill';
+      case 'bot':
+        return 'Bot';
     }
   };
 
@@ -294,6 +313,8 @@ export function CommandAutocompleteMenu({ ac, className = '' }: CommandAutocompl
         return 'bg-brand/15 text-brand dark:bg-brand/25 dark:text-teal-11';
       case 'skill':
         return 'bg-purple-9/15 text-purple-11 dark:bg-purple-9/25 dark:text-purple-11';
+      case 'bot':
+        return 'bg-teal-9/15 text-teal-11 dark:bg-teal-9/25 dark:text-teal-11';
     }
   };
 
@@ -307,7 +328,8 @@ export function CommandAutocompleteMenu({ ac, className = '' }: CommandAutocompl
       {items.map((cmd, index) => {
         const prev = index > 0 ? items[index - 1] : null;
         const isFirstSkill = cmd.source === 'skill' && (!prev || prev.source !== 'skill');
-        const isFirstCommand = cmd.source !== 'skill' && index === 0;
+        const isFirstBot = cmd.source === 'bot' && (!prev || prev.source !== 'bot');
+        const isFirstCommand = cmd.source === 'builtin' && index === 0;
         return (
           <div key={cmd.name}>
             {isFirstCommand && (
@@ -318,6 +340,11 @@ export function CommandAutocompleteMenu({ ac, className = '' }: CommandAutocompl
             {isFirstSkill && (
               <div className="px-4 py-1 text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/40">
                 Skills
+              </div>
+            )}
+            {isFirstBot && (
+              <div className="px-4 py-1 text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/40">
+                Bots
               </div>
             )}
             <div

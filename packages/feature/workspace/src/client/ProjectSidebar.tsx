@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Joystick } from 'lucide-react';
+import { Bot, Joystick } from 'lucide-react';
 import { ProjectItem, type ProjectSessionBadge } from './ProjectItem';
 import { GlobalSessionMonitor, GlobalSession } from '@cockpit/feature-agent';
 import { PinnedSessionsPanel } from '@cockpit/feature-agent';
@@ -41,6 +41,7 @@ interface ProjectSidebarProps {
   onOpenSettings: () => void;
   onOpenNote: (cwd?: string) => void;
   onOpenSkills: () => void;
+  onOpenBots: () => void;
   onOpenApps: () => void;
   htmlAppPreviews: HtmlAppPreview[];
   activeHtmlAppPreviewPath: string | null;
@@ -251,6 +252,7 @@ export function ProjectSidebar({
   onOpenSettings,
   onOpenNote,
   onOpenSkills,
+  onOpenBots,
   onOpenApps,
   htmlAppPreviews,
   activeHtmlAppPreviewPath,
@@ -606,6 +608,15 @@ export function ProjectSidebar({
                 that idea without this collision. */}
           <Joystick className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span className="text-sm">{t('workspace.skills')}</span>}
+        </button>
+        {/* Bots */}
+        <button
+          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-hover transition-colors ${collapsed ? 'justify-center' : ''}`}
+          onClick={onOpenBots}
+          title={collapsed ? t('workspace.bots') : undefined}
+        >
+          <Bot className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="text-sm">{t('workspace.bots')}</span>}
         </button>
         {/* Settings row — the whole row is one click target (opens the
             Settings modal). Help is a secondary action nested inside the

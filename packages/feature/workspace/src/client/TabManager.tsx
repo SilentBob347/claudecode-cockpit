@@ -36,6 +36,8 @@ interface TabManagerProps {
   initialBlank?: boolean;
   /** View to force on mount (from the URL). When set, it overrides the saved project view. */
   initialView?: ViewType;
+  /** Project-relative file to reveal in the Explorer on mount (from the URL). */
+  initialFile?: string;
 }
 
 /**
@@ -165,7 +167,7 @@ function PaneShell({
   );
 }
 
-export function TabManager({ initialCwd, initialSessionId, initialBlank, initialView }: TabManagerProps) {
+export function TabManager({ initialCwd, initialSessionId, initialBlank, initialView, initialFile }: TabManagerProps) {
   const { t } = useTranslation();
   // activeView must be declared before useTabState, as useTabState needs it to determine unread state
   const [activeView, setActiveView] = useState<ViewType>(initialView ?? 'agent');
@@ -254,7 +256,14 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
   const [tabSwitchTrigger, setTabSwitchTrigger] = useState(0);
   const [fileBrowserSearchQuery, setFileBrowserSearchQuery] = useState<string | null>(null);
   const [searchQueryTrigger, setSearchQueryTrigger] = useState(0);
-  const [fileOpenRequest, setFileOpenRequest] = useState<{ path: string; lineNumber?: number; nonce: number } | null>(null);
+  // Seeded from the URL when the frame was opened onto a specific file, so the
+  // reveal happens on first paint instead of racing a post-mount message.
+  const [fileOpenRequest, setFileOpenRequest] = useState<{ path: string; lineNumber?: number; nonce: number } | null>(
+    initialFile ? { path: initialFile, nonce: 0 } : null,
+  );
+  // The window-message listener is registered once per tab set; reaching the
+  // reveal handler through a ref keeps its identity out of that effect's deps.
+  const handleOpenFileLinkRef = useRef<(target: { path: string; lineNumber?: number }) => void>(() => {});
   // Message-level "view all file changes": a column in the RIGHT HALF of the
   // agent panel, beside the chat that opened it. Null = not showing.
   //
@@ -486,6 +495,11 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
           }
         }
       }
+      // Reveal a file in the Explorer — the Bots panel opening a BOT.md in a
+      // project that is already mounted (a fresh frame gets it from the URL).
+      if (event.data?.type === 'OPEN_FILE' && typeof event.data?.path === 'string') {
+        handleOpenFileLinkRef.current({ path: event.data.path });
+      }
     };
 
     window.addEventListener('message', handleMessage);
@@ -608,6 +622,10 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
     setFileOpenRequest({ ...target, nonce: Date.now() });
     handleViewChange('explorer');
   }, [handleViewChange]);
+
+  useEffect(() => {
+    handleOpenFileLinkRef.current = handleOpenFileLink;
+  }, [handleOpenFileLink]);
 
   // Nothing dismisses the diff column on the user's behalf any more. Every rule
   // that used to — a FileBrowser-driving command, a search fired from inside the

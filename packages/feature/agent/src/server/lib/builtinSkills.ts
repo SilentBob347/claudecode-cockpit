@@ -28,6 +28,8 @@ export interface BuiltinSkillMeta {
   name: string;
   /** `description:` from the frontmatter; '' when absent. */
   description: string;
+  /** `hidden: true` — machinery, not a command the user types. Kept out of the `/` menu. */
+  hidden: boolean;
 }
 
 /**
@@ -66,6 +68,35 @@ export function builtinSkillPath(name: string): string {
   return join(BUILTIN_SKILLS_SRC_DIR, name, 'SKILL.md');
 }
 
+/**
+ * Reference files a builtin ships NEXT TO its SKILL.md, for progressive loading:
+ * `skills/<cmd>/*.md` other than SKILL.md. They are copied to the resolved
+ * directory alongside it (see writeBuiltinSkill), so a SKILL.md can point at
+ * `<dir>/writing.md` for the part most turns never need.
+ *
+ * They are NOT commands: listBuiltinSkillNames keys on directories holding a
+ * SKILL.md, so adding one here never registers a new verb.
+ */
+export function listBuiltinSkillExtras(name: string): string[] {
+  try {
+    return readdirSync(join(BUILTIN_SKILLS_SRC_DIR, name), { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith('.md') && e.name !== 'SKILL.md')
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/** Raw text of one such reference file, or null if unreadable. */
+export function readBuiltinSkillExtra(name: string, file: string): string | null {
+  try {
+    return readFileSync(join(BUILTIN_SKILLS_SRC_DIR, name, file), 'utf-8');
+  } catch {
+    return null;
+  }
+}
+
 /** Raw SKILL.md text ({{BASE_URL}} still unsubstituted), or null if unreadable. */
 export function readBuiltinSkill(name: string): string | null {
   try {
@@ -75,13 +106,21 @@ export function readBuiltinSkill(name: string): string | null {
   }
 }
 
-/** Name + description for every builtin — the autocomplete dropdown's source. */
+/**
+ * Name + description for every builtin — the autocomplete dropdown's source.
+ *
+ * `hidden: true` in the frontmatter marks a skill that exists for the machinery,
+ * not for the user to type: bot-run is pulled in by an `@bot` line and would be
+ * noise in the `/` menu. It stays a normal directory (the folder set is still
+ * the whole registry) and stays dispatchable — only the dropdown skips it.
+ */
 export function listBuiltinSkillsMeta(): BuiltinSkillMeta[] {
   return listBuiltinSkillNames().map((name) => {
     const text = readBuiltinSkill(name);
     return {
       name,
       description: (text && readFrontmatterField(text, 'description')) || '',
+      hidden: (text && readFrontmatterField(text, 'hidden')) === 'true',
     };
   });
 }

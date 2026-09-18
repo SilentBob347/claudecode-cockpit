@@ -44,6 +44,15 @@ describe('builtin skills directory', () => {
     expect(mismatched).toEqual([]);
   });
 
+  it('marks the two @bot builtins hidden and every other builtin visible', () => {
+    // bot-run (dispatcher side) and bot-turn (the delegated session's side) are
+    // machinery an `@bot` line pulls in; typing `/bot-run` is never what the user
+    // wants, so they stay out of the `/` menu while remaining normal directories
+    // in the registry.
+    const hidden = mod.listBuiltinSkillsMeta().filter((m) => m.hidden).map((m) => m.name);
+    expect(hidden.sort()).toEqual(['bot-run', 'bot-turn']);
+  });
+
   it('every skill: has a description for the autocomplete dropdown', () => {
     const missing = mod.listBuiltinSkillsMeta().filter((m) => !m.description);
     expect(missing.map((m) => m.name)).toEqual([]);

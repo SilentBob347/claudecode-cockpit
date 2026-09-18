@@ -10,6 +10,7 @@ import { HtmlAppsModal, type HtmlAppPreview } from '@cockpit/feature-explorer';
 import { TokenStatsModal } from '@cockpit/feature-agent';
 import { NoteModal } from './NoteModal';
 import { SkillsModal } from '@cockpit/feature-skills';
+import { BotsModal } from './BotsModal';
 import { SessionCompleteToastContainer, showSessionCompleteToast } from '@cockpit/feature-agent';
 import { useEffectQuery } from '@cockpit/effect-react';
 import { Effect } from 'effect';
@@ -36,6 +37,7 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [noteProjectCwd, setNoteProjectCwd] = useState<string | null>(null);
   const [isSkillsOpen, setIsSkillsOpen] = useState(false);
+  const [isBotsOpen, setIsBotsOpen] = useState(false);
   const [isHtmlAppsOpen, setIsHtmlAppsOpen] = useState(false);
   const [htmlAppPreviews, setHtmlAppPreviews] = useState<HtmlAppPreview[]>([]);
   const [activeHtmlAppPreviewPath, setActiveHtmlAppPreviewPath] = useState<string | null>(null);
@@ -381,7 +383,7 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
       }
       // Request from inside an iframe to open or switch a project (worktree switch, session open, etc.)
       if (event.data?.type === 'OPEN_PROJECT' && event.data?.cwd) {
-        const { cwd, sessionId, switchToAgent } = event.data;
+        const { cwd, sessionId, switchToAgent, file } = event.data;
         const targetSessionId = sessionId || '';
         touchBeforeGlobalNavigation(cwd, targetSessionId || undefined);
         projectSessionIdsRef.current.set(cwd, targetSessionId);
@@ -401,6 +403,16 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
               initialSessionIdsRef.current.set(cwd, { sessionId: targetSessionId, ...(switchToAgent ? { switchToAgent: true } : {}) });
             }
           }
+          if (file) {
+            const iframe = iframeRefs.current.get(cwd);
+            if (iframe?.contentWindow) {
+              iframe.contentWindow.postMessage({ type: 'OPEN_FILE', path: file }, '*');
+            } else {
+              // Never mounted: freeze the target into the iframe URL instead,
+              // the same way a pending sessionId is carried.
+              initialSessionIdsRef.current.set(cwd, { ...initialSessionIdsRef.current.get(cwd), file });
+            }
+          }
           if (existingIndex !== activeIndex) {
             setActiveIndex(existingIndex);
             saveProjects(projects, existingIndex, collapsed);
@@ -413,8 +425,12 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
           setProjects(newProjects);
           setActiveIndex(newActiveIndex);
           saveProjects(newProjects, newActiveIndex, collapsed);
-          if (targetSessionId) {
-            initialSessionIdsRef.current.set(cwd, { sessionId: targetSessionId, ...(switchToAgent ? { switchToAgent: true } : {}) });
+          if (targetSessionId || file) {
+            initialSessionIdsRef.current.set(cwd, {
+              ...(targetSessionId ? { sessionId: targetSessionId } : {}),
+              ...(switchToAgent ? { switchToAgent: true } : {}),
+              ...(file ? { file } : {}),
+            });
           }
         }
         updateUrl(cwd, targetSessionId);
@@ -634,6 +650,7 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenNote={(cwd) => { setNoteProjectCwd(cwd ?? null); setIsNoteOpen(true); }}
         onOpenSkills={() => setIsSkillsOpen(true)}
+        onOpenBots={() => setIsBotsOpen(true)}
         onOpenApps={() => setIsHtmlAppsOpen(true)}
         htmlAppPreviews={htmlAppPreviews}
         activeHtmlAppPreviewPath={activeHtmlAppPreviewPath}
@@ -726,6 +743,11 @@ export function Workspace({ initialCwd, initialSessionId, initialBlank }: Worksp
       <SkillsModal
         isOpen={isSkillsOpen}
         onClose={() => setIsSkillsOpen(false)}
+      />
+
+      <BotsModal
+        isOpen={isBotsOpen}
+        onClose={() => setIsBotsOpen(false)}
       />
 
       {/* HTML Apps Modal */}

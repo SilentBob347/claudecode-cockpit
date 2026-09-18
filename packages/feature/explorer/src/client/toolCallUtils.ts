@@ -264,6 +264,12 @@ export function isSkillFile(filePath: string): boolean {
   return base.toLowerCase() === 'skill.md';
 }
 
+/** A Bot manifest: registering it adds the containing directory to bot.json. */
+export function isBotFile(filePath: string): boolean {
+  const base = filePath.slice(filePath.lastIndexOf('/') + 1);
+  return base.toLowerCase() === 'bot.md';
+}
+
 /**
  * Resolve a markdown link target against the directory of the current file,
  * returning a cwd-relative path (the form handleSelectFile / locateInTree use).

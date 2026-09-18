@@ -39,3 +39,4 @@ export { SettingsModal } from './SettingsModal';
 export { NoteModal } from './NoteModal';
 export { NoteToolbar } from './NoteToolbar';
 export { SessionBrowser } from './SessionBrowser';
+export { BotsModal } from './BotsModal';

@@ -57,6 +57,12 @@ export interface OpenProjectPayload {
   readonly sessionId?: string
   /** Also bring the target project's Agent (chat) panel to front — set by session links. */
   readonly switchToAgent?: boolean
+  /**
+   * Project-relative file to reveal in the Explorer once the project is open
+   * (the Bots panel opens a Bot directory straight onto its BOT.md). Brings the
+   * Explorer panel to front, so it is mutually exclusive with `switchToAgent`.
+   */
+  readonly file?: string
 }
 
 export interface SessionCompletePayload {

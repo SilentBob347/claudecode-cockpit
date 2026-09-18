@@ -47,3 +47,13 @@ export {
   type SkillPreviewLite,
   type AddSkillResult,
 } from './skillsRegistryClient';
+
+export {
+  loadBots,
+  addBot,
+  removeBot,
+  type BotInfo,
+  type AddBotResult,
+} from './botsRegistryClient';
+export { notifyBotsChanged, onBotsChanged } from './botsBus';
+export { failureMessage } from './httpJson';

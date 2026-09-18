@@ -221,7 +221,8 @@
     "reloadNow": "Reload",
     "upgradeCommandCopied": "Copied `cockpit update`",
     "projectNotes": "Project Notes",
-    "closeProject": "Close project"
+    "closeProject": "Close project",
+    "bots": "Bots"
   },
   "mobile": {
     "useDesktop": "Desktop",
@@ -568,7 +569,7 @@
     "codexResumeFailed": "Previous session is in use by another Codex client — started a new session; history was not carried over",
     "codexResumeFailedPrevious": "Previous session",
     "codexResumeFailedNew": "New session",
-    "placeholder": "Type a message, Enter to send (Shift+Enter for new line, paste images; start a line with / (main session) or @ (subagent) for commands, multiple allowed)",
+    "placeholder": "Type a message, Enter to send (Shift+Enter for new line, paste images; start a line with / (skill), /@ (skill in a subagent) or @ (bot in a subagent), multiple allowed)",
     "placeholderDisabled": "Generating... you can keep typing (ESC to cancel; if stuck, cancel and resend 'continue')",
     "imageSizeLimit": "Image size exceeds limit (max 5MB), current: {{size}}MB",
     "viewGitChanges": "View Git changes",
@@ -1309,5 +1310,28 @@
   "reviewUtils": {
     "adjectives": ["Happy", "Brave", "Quiet", "Bright", "Gentle", "Agile", "Free", "Clear", "Flying", "Relaxed", "Lively", "Wise", "Calm", "Alert", "Composed", "Steady", "Cheerful", "Warm", "Bold", "Poised"],
     "nouns": ["Panda", "Dolphin", "Crane", "Snow Leopard", "Skylark", "Squirrel", "Flying Fish", "Deer", "Bluebird", "Silver Fox", "Owl", "Dragonfly", "Firefly", "Sea Turtle", "Butterfly", "Monkey", "Red-crowned Crane", "Antelope", "Swallow", "Penguin"]
+  },
+  "bots": {
+    "title": "Bots",
+    "search": "Search bots",
+    "addExisting": "Add bot",
+    "addTooltip": "Add as Bot",
+    "emptyNoMatch": "No bots match your search.",
+    "emptyNoBots": "No bots of your own yet.",
+    "emptyCreatePrefix": "Use",
+    "emptyCreateSuffix": "in chat to create one.",
+    "emptyAddExisting": "add an existing Bot directory",
+    "invalid": "Invalid",
+    "builtin": "Built-in",
+    "remove": "Remove registration",
+    "open": "Open as project",
+    "pathPlaceholder": "Absolute path to a Bot directory or its BOT.md",
+    "addHint": "The directory must contain a BOT.md. Its files are not changed.",
+    "added": "Bot added",
+    "alreadyAdded": "Already added",
+    "removed": "Bot removed; its files were kept.",
+    "loadFailed": "Failed to load bots",
+    "saveFailed": "Failed to add bot",
+    "removeFailed": "Failed to remove bot"
   }
 }

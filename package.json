@@ -68,6 +68,7 @@
     "bin",
     "chrome-extension",
     "apps",
+    "bots",
     "!**/*.test.*",
     "!**/*.spec.*",
     "public",

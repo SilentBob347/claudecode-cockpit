@@ -75,6 +75,9 @@ export const docsSidebar: DocSection[] = [
       // Five are built in (the AI modes /qa /fx /ex /go /cg); users add more
       // by installing SKILL.md files. Same `/` menu, same docs page.
       { slug: 'agent/skills', labelKey: 'skills', available: true },
+      // Persistent, file-native subagents build on Skills and are invoked by
+      // the workflow syntax documented on the next page.
+      { slug: 'agent/bots', labelKey: 'bots', available: true },
       // Chaining slash commands into an ordered, multi-step run — the
       // line-led `/` + `@` syntax. Sits after Skills because it composes the
       // commands documented there.

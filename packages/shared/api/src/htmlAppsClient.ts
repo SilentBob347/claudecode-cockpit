@@ -14,6 +14,7 @@
  */
 import { Effect } from "effect"
 import { AppError } from "@cockpit/effect-core"
+import { httpJson } from "./httpJson"
 
 export interface HtmlAppInfo {
   id: string
@@ -31,25 +32,6 @@ export interface HtmlAppInfo {
   builtin?: boolean
 }
 
-const httpJson = <A>(url: string, init?: RequestInit): Effect.Effect<A, AppError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const res = await fetch(url, init)
-      if (!res.ok) {
-        let bodyError: string | undefined
-        try {
-          const data = (await res.json()) as { error?: string }
-          bodyError = data.error
-        } catch {
-          /* not JSON */
-        }
-        throw new Error(bodyError || `HTTP ${res.status}`)
-      }
-      return (await res.json()) as A
-    },
-    catch: (cause) =>
-      new AppError({ message: `${init?.method ?? "GET"} ${url} failed`, cause }),
-  })
 
 /** GET /api/html-apps — backend returns Array<HtmlAppInfo> directly. */
 export const loadHtmlApps = (): Effect.Effect<ReadonlyArray<HtmlAppInfo>, AppError> =>

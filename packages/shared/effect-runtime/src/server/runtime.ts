@@ -27,6 +27,7 @@ import {
   SessionCleanupLive,
   SessionSearchServiceLive,
   DelegationServiceLive,
+  BotRegistryServiceLive
 } from "@cockpit/feature-agent/effect"
 
 const isDev = process.env.COCKPIT_ENV === "dev"
@@ -59,7 +60,9 @@ export const AppLayer = Layer.mergeAll(
   // Cross-project session search (/api/sessions/search)
   SessionSearchServiceLive,
   // Fire-and-forget sub-task sessions + session status (/api/sessions/delegate, /status)
-  DelegationServiceLive
+  DelegationServiceLive,
+  // User-registered Bot directories (bot.json)
+  BotRegistryServiceLive
 )
 
 export type AppContext = Layer.Layer.Success<typeof AppLayer>

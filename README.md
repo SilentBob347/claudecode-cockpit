@@ -46,6 +46,7 @@ Cockpit is the instrument panel. It does **not** replace Claude Code; it stands 
 | One session at a time, terminal chaos at 3+ projects | **Multi-project tabs**, parallel agent sessions, red-dot inbox, desktop notifications |
 | Image attachments are awkward | Drop / paste images straight into chat |
 | "What was I debugging yesterday?" | Cmd+K cross-project session browser, pinning, forking; `/ss` finds any past session from one sentence |
+| Every subagent starts with a blank slate | **Bots**: persistent, file-native subagents you tag with `@name`; each runs in its own inspectable session |
 | Agent can't reach your browser / DB | **Smart Bubbles**: Chrome, PostgreSQL, MySQL, Redis — drivable by the agent |
 | Reading an unfamiliar repo means a 90-min file-tree scavenger hunt | **Code Map** chip view — caller / callee pins, click to walk the call graph |
 | Reviewing AI output is friction | **LAN-shared review pages**, line-level comments, send any comment back as AI context |
@@ -99,6 +100,7 @@ An honest snapshot as of July 2026 — each tool wins somewhere. Spotted an erro
 - Session **pinning, forking**, cross-project session browser (Cmd+K)
 - `/ss` — **find any past session** (any project, engine or date) from a one-line description; the reply links straight to it
 - `/dl` — **delegate a sub-task** to a new session in another directory and/or on another engine, without waiting; ask later how it went
+- **Bots** — tag a persistent, file-native subagent with `@name`; it runs in a separate session with its own identity, context, commitments, and Skills
 - **Per-tool-call snapshots** — every file-touching tool call is snapshotted (shadow git, fully local); review each reply's changes as a git-history-style timeline, including what `Bash` did
 - `!command` prefix to run shell from chat — output piped back as context
 - Image attachments, code references, token usage tracking
@@ -151,9 +153,20 @@ An honest snapshot as of July 2026 — each tool wins somewhere. Spotted an erro
 - Invoke with `/skill-name` from chat
 - All managed from a single Skills sidebar
 
+### Bots — persistent subagents
+
+- Create a Bot with `/bot`, then register its ordinary local directory from the Bots panel or its `BOT.md`
+- Tag it into any task with `@name`; every turn runs in a separate, inspectable session and returns a link
+- Memory is deliberate: normal turns are read-only, and files change only when you explicitly ask to remember, update, correct, or forget
+- Attach an existing Skill with `@name attach /path/to/SKILL.md`; review stale memory with `@name review`
+- Bot directories stay local and portable Markdown — no hidden database, upload, or vendor lock-in
+
+[Read the Bots documentation](https://opencockpit.dev/en/docs/agent/bots/).
+
 ## Use cases
 
 - **Solo dev, multi-repo:** "I have a refactor running in API, tests writing in Web, and a bug investigation in Pipeline — all at once, all visible."
+- **A specialist that remembers:** tag `@product` for a roadmap decision today and again next month; it reads the same explicit, reviewable context without polluting the main chat.
 - **Day one in an unfamiliar repo:** Open it in Code Map, click through caller/callee pins, walk the auth flow in five clicks instead of a 90-minute file-tree scavenger hunt.
 - **Two-person team:** Senior reviews via LAN-shared review page, no GitHub PR round-trip needed for in-progress work.
 - **Team on a shared dev box:** self-host one Cockpit where the code lives — every teammate opens a browser, takes a seat, and runs their own AI sessions in their own project / worktree.
