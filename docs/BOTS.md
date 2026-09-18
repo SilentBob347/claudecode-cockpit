@@ -87,13 +87,13 @@ Cockpit 不介入 Bot 目录的读写。Bot 目录就是普通文件夹，用户
 [主会话·qa]
 
 请先读取以下 skill 文件，再据此执行：
-- qa：/Users/ka/.cockpit/skills/qa/SKILL.md
-- bot-run：/Users/ka/.cockpit/skills/bot-run/SKILL.md
+- qa：/Users/me/.cockpit/skills/qa/SKILL.md
+- bot-run：/Users/me/.cockpit/skills/bot-run/SKILL.md
 
 以下文件交给你派发的子会话去读，你只转交路径，不要自己打开：
-- bot-turn：/Users/ka/.cockpit/skills/bot-turn/SKILL.md
-- @product：/Users/ka/.cockpit/bots/product/BOT.md
-- @finance：/Users/ka/.cockpit/bots/finance/BOT.md
+- bot-turn：/Users/me/.cockpit/skills/bot-turn/SKILL.md
+- @product：/Users/me/.cockpit/bots/product/BOT.md
+- @finance：/Users/me/.cockpit/bots/finance/BOT.md
 ```
 
 ## 3. BOT.md

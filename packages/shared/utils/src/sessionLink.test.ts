@@ -3,7 +3,7 @@ import { buildSessionLink, parseSessionLink } from './sessionLink';
 
 describe('sessionLink', () => {
   it('round-trips cwd and sessionId, including spaces and CJK', () => {
-    const cwd = '/Users/ka/My Notes/笔记';
+    const cwd = '/Users/me/My Notes/笔记';
     const link = buildSessionLink(cwd, 'abc-123');
     expect(link.startsWith('/project?')).toBe(true);
     expect(parseSessionLink(link)).toEqual({ cwd, sessionId: 'abc-123' });

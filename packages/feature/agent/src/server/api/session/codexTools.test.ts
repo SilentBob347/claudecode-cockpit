@@ -71,7 +71,7 @@ describe('codex 5.6 exec script tool', () => {
     const script = [
       'const r = await tools.exec_command({',
       '  cmd: "sed -n \'1,240p\' .agents/skills/explain/SKILL.md",',
-      '  workdir: "/Users/ka/Work/x",',
+      '  workdir: "/Users/me/Work/x",',
       '  yield_time_ms: 10000,',
       '  max_output_tokens: 20000',
       '});',
@@ -82,7 +82,7 @@ describe('codex 5.6 exec script tool', () => {
       command: "sed -n '1,240p' .agents/skills/explain/SKILL.md",
       args: {
         cmd: "sed -n '1,240p' .agents/skills/explain/SKILL.md",
-        workdir: '/Users/ka/Work/x',
+        workdir: '/Users/me/Work/x',
         yield_time_ms: 10000,
         max_output_tokens: 20000,
       },

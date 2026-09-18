@@ -49,7 +49,7 @@ type StepMarker = '/' | '/@' | '@';
 // whitespace — deliberately NO character class.
 //
 // This regex only TOKENIZES; `isKnown()` below is the gate. Widening it is
-// therefore free: a line the registry doesn't recognize (`/Users/ka/foo.ts`,
+// therefore free: a line the registry doesn't recognize (`/Users/me/foo.ts`,
 // `@somebody`) falls through to the untouched-prose path exactly as before.
 // A character class here, by contrast, is a silent killer — it rejected
 // `/5e` (digit-first) BEFORE the registry was ever consulted, so a skill that

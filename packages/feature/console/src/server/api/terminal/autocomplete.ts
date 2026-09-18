@@ -46,7 +46,7 @@ async function getPathSuggestions(
     const resolved = expandHomePath(partialPath, HOME_DIR)
     const isAbsolute = resolved.startsWith("/")
     // A trailing separator means "list this directory", not "complete its last
-    // segment" — path.basename("/Users/ka/") is "ka", so without this branch
+    // segment" — path.basename("/Users/me/") is "ka", so without this branch
     // `~/<Tab>` offered the home directory's siblings instead of its contents.
     // (expandHomePath preserves the trailing separator for exactly this.)
     const endsWithSep = /[/\\]$/.test(resolved)

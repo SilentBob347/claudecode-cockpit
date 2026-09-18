@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { openSessionLink, type OpenSessionLinkDeps } from './openSessionLink';
 
-const target = { cwd: '/Users/ka/proj', sessionId: 's-1' };
+const target = { cwd: '/Users/me/proj', sessionId: 's-1' };
 const href = '/project?cwd=%2FUsers%2Fka%2Fproj&sessionId=s-1&view=agent';
 
 const deps = (framed: boolean) => ({
@@ -14,7 +14,7 @@ describe('openSessionLink', () => {
   it('publishes OpenProject over IframeBus with switchToAgent when framed', () => {
     const d = deps(true);
     openSessionLink(target, href, d);
-    expect(d.publishOpenProject).toHaveBeenCalledWith({ cwd: '/Users/ka/proj', sessionId: 's-1', switchToAgent: true });
+    expect(d.publishOpenProject).toHaveBeenCalledWith({ cwd: '/Users/me/proj', sessionId: 's-1', switchToAgent: true });
     expect(d.navigate).not.toHaveBeenCalled();
   });
 

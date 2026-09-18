@@ -75,7 +75,7 @@ describe('buildChildPrompt', () => {
   it('puts the title first, then the parent, then the brief pointer', () => {
     const text = dl.buildChildPrompt(
       { cwd: projectDir, engine: 'codex', title: 'Port X', briefPath: '/tmp/brief.md' },
-      { cwd: '/Users/ka/parent-proj', sessionId: 's1', link: '/project?cwd=%2Fp&sessionId=s1&view=agent' },
+      { cwd: '/Users/me/parent-proj', sessionId: 's1', link: '/project?cwd=%2Fp&sessionId=s1&view=agent' },
     );
     const [first, second] = text.split('\n');
     expect(first).toBe('Task: Port X');

@@ -479,41 +479,41 @@ describe("injected SDK — language", () => {
  * src with no address of its own, so every one of them is resolved here.
  */
 describe("resolveLocalMediaUrl", () => {
-  const BASE = "/Users/ka/Work/novel-to-game"
+  const BASE = "/Users/me/Work/demo-app"
 
   it("maps a document-relative path to its /apps/local URL", () => {
     expect(resolveLocalMediaUrl("examples/a/title.jpg", BASE)).toBe(
-      "/apps/local/Users/ka/Work/novel-to-game/examples/a/title.jpg"
+      "/apps/local/Users/me/Work/demo-app/examples/a/title.jpg"
     )
     expect(resolveLocalMediaUrl("./title.jpg", BASE)).toBe(
-      "/apps/local/Users/ka/Work/novel-to-game/title.jpg"
+      "/apps/local/Users/me/Work/demo-app/title.jpg"
     )
   })
 
   it("collapses `..` — the server rejects a URL that still contains one", () => {
     expect(resolveLocalMediaUrl("../shared/logo.png", BASE)).toBe(
-      "/apps/local/Users/ka/Work/shared/logo.png"
+      "/apps/local/Users/me/Work/shared/logo.png"
     )
     expect(fromLocalAppUrl(resolveLocalMediaUrl("../shared/logo.png", BASE))).toBe(
-      "/Users/ka/Work/shared/logo.png"
+      "/Users/me/Work/shared/logo.png"
     )
   })
 
   it("keeps ?query and #hash out of the encoded filename", () => {
     expect(resolveLocalMediaUrl("logo.png?v=2", BASE)).toBe(
-      "/apps/local/Users/ka/Work/novel-to-game/logo.png?v=2"
+      "/apps/local/Users/me/Work/demo-app/logo.png?v=2"
     )
     expect(resolveLocalMediaUrl("sprite.svg#icon", BASE)).toBe(
-      "/apps/local/Users/ka/Work/novel-to-game/sprite.svg#icon"
+      "/apps/local/Users/me/Work/demo-app/sprite.svg#icon"
     )
   })
 
   it("decodes once so an already-encoded path is not double-encoded", () => {
     expect(resolveLocalMediaUrl("my%20file.png", BASE)).toBe(
-      "/apps/local/Users/ka/Work/novel-to-game/my%20file.png"
+      "/apps/local/Users/me/Work/demo-app/my%20file.png"
     )
     expect(resolveLocalMediaUrl("my file.png", BASE)).toBe(
-      "/apps/local/Users/ka/Work/novel-to-game/my%20file.png"
+      "/apps/local/Users/me/Work/demo-app/my%20file.png"
     )
   })
 
@@ -531,8 +531,8 @@ describe("resolveLocalMediaUrl", () => {
   })
 
   it("anchors a relative base to projectRoot, and gives up without one", () => {
-    expect(resolveLocalMediaUrl("a.png", "docs", "/Users/ka/proj")).toBe(
-      "/apps/local/Users/ka/proj/docs/a.png"
+    expect(resolveLocalMediaUrl("a.png", "docs", "/Users/me/proj")).toBe(
+      "/apps/local/Users/me/proj/docs/a.png"
     )
     // No absolute base derivable — leave the browser's own resolution alone
     // rather than emit a URL that is confidently wrong.
@@ -541,8 +541,8 @@ describe("resolveLocalMediaUrl", () => {
   })
 
   it("handles a windows base", () => {
-    expect(resolveLocalMediaUrl("img/a.png", "C:\\Users\\ka\\proj")).toBe(
-      "/apps/local/C%3A/Users/ka/proj/img/a.png"
+    expect(resolveLocalMediaUrl("img/a.png", "C:\\Users\\me\\proj")).toBe(
+      "/apps/local/C%3A/Users/me/proj/img/a.png"
     )
   })
 })
@@ -551,10 +551,10 @@ describe("toExternalBrowserAppUrl", () => {
   it("moves localhost app-runtime URLs onto loopback IP to avoid PWA scope capture", () => {
     expect(
       toExternalBrowserAppUrl(
-        "/apps/local/Users/ka/Cherry/07-Skills/weather/index.html",
+        "/apps/local/Users/me/Notes/Skills/weather/index.html",
         "http://localhost:3456"
       )
-    ).toBe("http://127.0.0.1:3456/apps/local/Users/ka/Cherry/07-Skills/weather/index.html")
+    ).toBe("http://127.0.0.1:3456/apps/local/Users/me/Notes/Skills/weather/index.html")
 
     expect(
       toExternalBrowserAppUrl(
