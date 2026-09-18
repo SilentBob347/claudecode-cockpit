@@ -72,7 +72,11 @@ describe('resolveCommandPrompt', () => {
     resolveCommandPrompt('@product hi');
     const read = (file: string) =>
       fs.readFileSync(path.join(cockpitHome, 'skills', 'bot-turn', file), 'utf-8');
-    for (const file of ['writing.md', 'review.md', 'attach.md']) {
+    // Deliberately a blanket check rather than a list of known names: a typo'd
+    // `{{COCKPIT_DIRR}}` is invisible otherwise, and it reaches the model as
+    // literal braces. It also means a reference file may not *mention* the
+    // double-brace form in prose — describe it in words instead.
+    for (const file of ['writing.md', 'review.md', 'attach.md', 'export.md']) {
       expect(read(file)).not.toContain('{{');
     }
     // One positive check per placeholder kind — `not.toContain('{{')` alone
@@ -92,7 +96,7 @@ describe('resolveCommandPrompt', () => {
     resolveCommandPrompt('@product hi');
     const read = (file: string) =>
       fs.readFileSync(path.join(cockpitHome, 'skills', 'bot-turn', file), 'utf-8');
-    for (const file of ['SKILL.md', 'attach.md', 'review.md']) {
+    for (const file of ['SKILL.md', 'attach.md', 'export.md', 'review.md']) {
       expect(read(file)).toContain('http://localhost:');
       expect(read(file)).toContain('/api/skills');
     }

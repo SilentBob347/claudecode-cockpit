@@ -12,10 +12,16 @@ files as its long-term context. Its files change only when the user explicitly a
 update / correct / forget), under a short write lock, so parallel sessions keep reading freely.
 
 **This skill does one thing: create a new Bot.** Everything you can do *to* an existing Bot is
-addressed to the Bot itself, not to this command — `@name 复盘一下` to review it, `@name 装上
-<path to SKILL.md>` to give it a tool, `@name <task>` for ordinary work. That is where those
-instructions live too, so they improve for every existing Bot at once. If the request is about a
-Bot that already exists, say which `@name` line does it and stop.
+addressed to the Bot itself, not to this command — `@name review` to sweep it, `@name attach <path
+to SKILL.md>` to give it a tool, `@name export to <path>` to make a shareable copy with no memory
+in it, `@name <task>` for ordinary work. That is where those instructions live too, so they
+improve for every existing Bot at once. If the request is about a Bot that already exists, say
+which `@name` line does it and stop.
+
+**Cloning one is not an exception.** "Copy this Bot", "make me another one like it", "turn it into
+a template" all operate on a Bot that exists, so they are `@name export to <path>` — and they need
+a session that has read the whole source directory to tell a general procedure from this user's
+private memory. Say that line and stop; do not scaffold a copy from here.
 
 `curl -s {{BASE_URL}}/api/bots` lists registered Bots with their `name`, `description` and
 absolute `path` — use it to check a new name for clashes.
@@ -36,11 +42,16 @@ absolute `path` — use it to check a new name for clashes.
 4. **Hand over registration** — do NOT register it yourself. Tell the user the directory
    path and the two ways to add it: open the **Bots** panel → **Add bot** and paste the path,
    or open `BOT.md` in the file explorer and click its **Add as Bot** button.
-5. **Say what it can now be asked**, in three lines — this is the only place the user learns the
+5. **Say what it can now be asked**, in four lines — this is the only place the user learns the
    verbs, since `@` autocomplete shows only the description:
    - `@<name> <task>` — ordinary work, in its own session, with its files as context
-   - `@<name> 复盘一下` — a sweep for stale entries, contradictions and dangling commitments
-   - `@<name> 装上 <path to SKILL.md>` — teach it a tool it may use
+   - `@<name> review` — a sweep for stale entries, contradictions and dangling commitments
+   - `@<name> attach <path to SKILL.md>` — teach it a tool it may use
+   - `@<name> export to <path>` — a new Bot at that path with the manual and skills but none of
+     the memory, to hand to someone else
+
+   Say them in the user's own language if they wrote in another one — each mode answers to the
+   phrasings listed at the top of its `bot-turn` file, English and Chinese alike.
 
 ## 2. Layout
 

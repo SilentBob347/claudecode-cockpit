@@ -48,14 +48,14 @@ Cockpit 不介入 Bot 目录的读写。Bot 目录就是普通文件夹，用户
 - `/@` 在正则交替中先于 `/` 匹配；
 - 未注册的 `@name`（包括旧写法 `@cr`）保持普通文本，不提示、不改写；
 - 执行顺序与并行由模型读完消息后自行决定，与 `/@skill` 一致；
-- **`[subagent·@name]` 是给模型的提示，不是 Cockpit 强制的执行位置**。和 `/@skill` 一样，Cockpit 既不断言也不记录真正的执行位置。缩小这个缺口的是 `bot-run`：只要消息里出现任一 `@bot`，引用清单就带上这个**隐藏** builtin skill（`hidden: true`，不进 `/` 补全、不进 `/api/commands`），它给出完整的派发流程——写自包含 brief → `POST /api/sessions/delegate` → 轮询 `/api/sessions/status` → 汇报结论 + 会话链接。因此按 Bot 执行契约，标准路径是**独立子会话**（有自己的 transcript、可续问、cwd 为当前项目），而不是主会话内联；代价是这仍靠模型遵守 skill，没有在 dispatch 层硬强制。若某天需要硬强制，再上 `PreToolUse` hook 或 dispatch 层拦截。
+- **`[subagent·@name]` 是给模型的提示，不是 Cockpit 强制的执行位置**。和 `/@skill` 一样，Cockpit 既不断言也不记录真正的执行位置。缩小这个缺口的是 `bot-run`：只要消息里出现任一 `@bot`，引用清单就带上这个**隐藏** builtin skill（`hidden: true`，不进 `/` 补全、不进 `/api/commands`），它给出完整的派发流程——写自包含 brief → `POST /api/sessions/delegate` → 轮询 `/api/sessions/status` → 汇报结论 + 会话链接。因此按 Bot 执行契约，标准路径是**独立子会话**（有自己的 transcript、可续问），而不是主会话内联；代价是这仍靠模型遵守 skill，没有在 dispatch 层硬强制。若某天需要硬强制，再上 `PreToolUse` hook 或 dispatch 层拦截。
 
 - **两个隐藏 builtin，按读者划分，这是本设计的主承重墙。** 出现 `@bot` 时清单挂上两个 `hidden: true` 的 skill（不进 `/` 补全、不进 `/api/commands`）：
 
   | | 读者 | 内容 | 失败时 |
   | --- | --- | --- | --- |
   | `bot-run` | 派发方（主会话） | 写 brief → delegate → 轮询 → 汇报 | 写不出文件时**内联**正文，否则 `@bot` 变成没有派发方法的空标签 |
-  | `bot-turn` | 执行方（子会话） | 读取规则 + 汇报规则（常驻），另按需加载 `writing.md`（条目格式 / 写入门槛 / 写锁）、`review.md`（复盘）、`attach.md`（装 skill） | **不内联** —— 它是写给 child 的，内联等于把 Bot 的全部操作手册塞进唯一不该拿到它的会话 |
+  | `bot-turn` | 执行方（子会话） | 读取规则 + 汇报规则（常驻），另按需加载 `writing.md`（条目格式 / 写入门槛 / 写锁）、`review.md`（复盘）、`attach.md`（装 skill）、`export.md`（导出模版） | **不内联** —— 它是写给 child 的，内联等于把 Bot 的全部操作手册塞进唯一不该拿到它的会话 |
 
   判据是**加载时机**：写锁在用户说"记一下"的那一刻执行，那一刻 `/bot` 没被加载（它是斜杠命令）、`bot-run` 也不在（那是派发方的文件），只有 `BOT.md` 和 child 手上的东西在。所以写锁既不能放 `/bot` 也不能放 `bot-run`，必须有第三份、且由 `bot-run` 指示 child 去读。
 
@@ -112,6 +112,12 @@ Cockpit 不介入 Bot 目录的读写。Bot 目录就是普通文件夹，用户
 - 之所以要走环境变量而不是把 cwd 替换进 skill 文件：builtin skill 解析后写在 `~/.cockpit/skills/<cmd>/SKILL.md`，**整个 COCKPIT_HOME 共用一份且每次派发都重写**。派发方在 T 时刻读 `bot-run`、子会话在 T+几分钟才读 `bot-turn`，中间任何一次别的派发都会把文件改掉——per-dispatch 的值放进去不只是竞态，是系统性过期。`{{BASE_URL}}`、`{{COCKPIT_DIR}}` 能那样做，只因为它们对这台机器是常量。
 - 起因：cwd 是派发唯一需要、而模型手上又没有的事实，于是它去**推断**——实测踩过一次，会话开在某个仓库的子目录里，派发方看到仓库根有 `.git` 和 CLAUDE.md 就一路往上推到了根目录，子会话因此开在用户工作目录的上一级，transcript 落到了另一个项目下（`~/.claude/projects/` 按 cwd 编码分目录）。
 - **Cockpit 只提供值，不替模型选**：它看不出这一行是普通工作还是导出/复盘/装上（那三种要用 Bot 目录）。选哪个仍归 `bot-run` 的表。
+
+### 2.2 续会话
+
+派发出去的子会话不是一次性的：`POST /api/chat`（claude；其它引擎为 `/api/chat/<engine>`）带上 `{ cwd, sessionId, prompt }` 就是往那个会话追发一条消息，返回 `{ runKey, sessionId }`，之后照 `bot-run` §3 同样轮询 `/api/sessions/status`。会话正在跑时返回 `409 session is already running`（`orchestrator.ts` 的单活跃 run 守卫），等它结束再发。
+
+`bot-run` §4 专门写了这条，因为**缺了它的代价不显眼**：实测有一次派发方判定"Cockpit 没有续会话的接口"，于是重新 delegate 了一个新会话，把上一轮的结论浓缩成一段 brief 带过去——新会话从零开始重读 Bot 的文件，上一轮查过什么、排除过什么、用户已经回答过什么全部丢失，同一件事付了两次钱。
 
 ## 3. BOT.md
 
@@ -207,6 +213,19 @@ Bot 自己长出来的 skill 放 `<bot>/skills/<name>/SKILL.md`，在同一张�
 - 每轮（包括普通 `@bot` 调用）在汇报末尾列出本轮读过与改过的文件，作为"这次回答基于什么"的最小可审计记录。
 
 **唤醒**：Bot 自身不会醒来，`next-check` 只在有人读 `commitments/active.md` 时才起作用——多数 Bot 到此为止就够了。只有当承诺确实会被漏掉时，skill 才提一次"可以建个定时任务发 `@name 检查 next-check 已过的承诺`"，建不建由用户决定，skill 不代建、也不重复提。定时任务走的是同一条 `dispatchChat` → `resolveCommandPrompt` 路径，因此 `@bot` 会照常派出 subagent。
+
+### 3.4 导出
+
+入口是 `@name 导出为 <路径>`（`bot-turn/export.md`）：读源 Bot，在**另一个目录**生成一个新 Bot，交给别人用。源目录只读不改。
+
+- **为什么不是直接分享运行目录**：运行目录里有写锁、复盘产物、这个用户的记忆，以及只在这台机器上成立的绝对路径。整份拷出去等于把这四样一起给了陌生人，而产物通常进公开仓库，泄漏不可逆。
+- **为什么是 `@name` 而不是 `/bot clone`**：`/bot` 只负责创建，对已存在 Bot 的操作一律寻址到 Bot 自己（§2）。更实质的理由是导出是**判断**而非拷贝——哪条 fact 是通用经验、哪条是这个用户的，只有通读过整个目录的会话能分辨，而那正是复盘已经在做的事；主会话执行则要么退化成机械 `cp -r`，要么把目录重读一遍。
+- **白名单而非黑名单**：只带 `BOT.md` + `identity/` + `skills/`，其余目录重建为空骨架，其它一切默认不带。理由是 Bot 目录会长出新东西——一张"不要带"的清单在它长出 `notes/` 的那天就漏了。被拒的内容按文件报条数，由用户点名追加，这是导出唯一碰记忆内容的时刻。
+- **改写 `BOT.md`**：`name` 取目标目录名（不改则接收方注册时直接撞名被拒）；`## Before working` / `## Updating` 原样保留（那正是被分享的操作手册）；`## Skills` 逐行看——名字和相对路径**原样不动**（它们本来就是可移植的，这正是 §3.2 写名字的回报），绝对路径则反查 `GET /api/skills`，能对上就换成那个 skill 的名字，对不上就保留并在报告里标"只在作者机器上成立"。
+- **报告要给出"接收方需要装什么"**：导出后的 Skills 表引用的全部 skill 名字，就是这个 Bot 的安装需求清单——按名字各注册一份即可。
+- **不取写锁**：产物写在源 Bot 之外，和 `.reviews/` 同属工作产物。唯一要避免的是回头往源 Bot 里记一笔"我导出过"——那是写，照 `writing.md` 走。
+- **不自行注册**：与 `/bot` 一致，说出路径和两种注册方式即止。产物多半要先进仓库再给别人，自动注册等于替用户判定它属于这台机器。
+- 凭证永不进产物：`secrets/`、`.env*` 不打开不复制；`identity/` 与 `skills/` 是手写的，通读时发现疑似凭证就停下报告，不写进产物。
 
 ## 4. 创建与注册
 

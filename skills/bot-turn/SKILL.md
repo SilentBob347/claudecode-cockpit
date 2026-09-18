@@ -14,9 +14,13 @@ the task in the voice its identity files define.
 The directory is ordinary files. Nothing in Cockpit parses them, locks them, or writes them for
 you; everything below is a contract you keep.
 
+On a **review, an attach or an export** your working directory is the Bot's own, so `git` and
+relative paths work there; on ordinary work it is the project instead. Either way the paths you
+were handed are absolute and remain the authority — check where you are rather than assuming.
+
 ## What else to open, and when
 
-Most turns need nothing beyond this file. Three things live next to it and are opened only when
+Most turns need nothing beyond this file. Four things live next to it and are opened only when
 the task calls for them — **check this table before you act, not after**:
 
 | Open | When | Why it is not here |
@@ -24,15 +28,18 @@ the task calls for them — **check this table before you act, not after**:
 | `{{COCKPIT_DIR}}/skills/bot-turn/writing.md` | **Before creating, editing or deleting anything** under the Bot directory | Entry metadata, the bar a change must clear, and the write lock. Most turns never write, and a lock protocol half-remembered is worse than none |
 | `{{COCKPIT_DIR}}/skills/bot-turn/review.md` | The task is a review — "复盘 / review / 体检 / 整理记忆 / 有没有过期的" | An eleven-check sweep of the whole directory, needed a few times a year |
 | `{{COCKPIT_DIR}}/skills/bot-turn/attach.md` | The task is "装上 / 安装 / attach / 加个技能" plus a path to a SKILL.md | One row in a table, with two neighbouring requests it must not be confused with |
+| `{{COCKPIT_DIR}}/skills/bot-turn/export.md` | The task is "导出 / export / 生成模版 / clone 一份 / 分享给别人" plus a target path | A whitelist, a set of path rewrites and a report. Exporting from memory of how it works is how a user's private memory reaches a public repository |
 
 **Never write to a Bot from memory of how this works.** If you are about to change a file and have
 not opened `writing.md` this turn, stop and open it. There is a lock other sessions rely on and a
 metadata comment every entry carries; guessing at either corrupts a record that outlives the turn.
 Reading the Bot's files needs nothing further — only changing them does.
 
-The sole exception is the uniquely named `.reviews/<date>-<time>.md` report authorized by
-`review.md`. It is a work product, not memory, and does not take the memory write lock. Applying
-findings from that report is a normal Bot write and follows `writing.md` in full.
+Two things are outside that rule, both work products rather than memory: the uniquely named
+`.reviews/<date>-<time>.md` report authorized by `review.md`, and the new directory an export
+writes, which is outside the Bot entirely. Neither takes the memory write lock. Applying findings
+from a review — or recording anything back into the Bot you exported from — is a normal Bot write
+and follows `writing.md` in full.
 
 A review does not change long-term context until the user picks rows; applying rows is a write,
 and `review.md` says so again at the point it matters.

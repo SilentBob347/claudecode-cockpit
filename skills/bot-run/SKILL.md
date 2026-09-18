@@ -160,7 +160,40 @@ gone. The loop keeps such an id pending rather than counting it finished, so a t
 just retries; an id stuck on `?` for a whole budget means the call is wrong. Re-run the bare curl
 without `|| body='{}'`, read the error body, and fix it. Never report `?` as an outcome.
 
-## 4. Report
+## 4. Follow up in the same session — do not delegate twice
+
+A Bot's answer often needs one more exchange: it asks which of two directories you meant, or the
+user reads the result and wants a change. **That is a message to the session that already exists,
+not a new delegation.**
+
+```bash
+curl -sS --fail-with-body -X POST "{{BASE_URL}}/api/chat" \
+  -H "Content-Type: application/json" \
+  --data-binary @- <<EOF_JSON
+{"cwd": "<the receipt's cwd, verbatim>", "sessionId": "<the receipt's sessionId>", "prompt": "<the follow-up>"}
+EOF_JSON
+```
+
+- No `x-cockpit-run-id` here, unlike §2: only the delegate endpoint reads that header, to record
+  which session started the child. This one continues a session that already has a parent.
+- **Match the route to the engine** the receipt reported: `/api/chat` is claude; codex, ollama,
+  kimi, deepseek and glm each have `/api/chat/<engine>`. Sending to the wrong one starts a
+  different engine on that transcript.
+- It returns `{ runKey, sessionId }` immediately, exactly like a delegation. **Wait for it the same
+  way** — §3, with the same `cwd` and that `sessionId`.
+- **`409 session is already running`** means the child has not finished. That is not an error to
+  route around; wait for a non-`running` status first and send it then.
+- Long or multi-part follow-ups go in a brief file exactly as in §1 — this body takes `prompt`
+  only, so write the file and reference it in the text if it is too big to inline comfortably.
+
+Delegating again instead is the tempting mistake, and it is expensive in a way that does not look
+expensive: the new session starts from nothing, re-reads the Bot's files, and knows only what your
+brief happens to restate. Everything the last turn established — what it checked, what it ruled
+out, what the user already answered — is in *that* transcript, and a summary of it is not the same
+thing. It has happened: a dispatcher decided Cockpit had no way to continue a session, re-delegated
+with a paragraph of context, and paid for the whole task twice.
+
+## 5. Report
 
 One short section per Bot: its conclusion in a few lines, then `[open session](<link>)`. The full
 answer lives in that session — do not paste it wholesale, and do not restate it as your own.
@@ -175,3 +208,7 @@ one, and dropping either detail strands the work.
 
 Pressing stop here does not stop a delegated session — it is a separate run. Say so if the user
 expects otherwise.
+
+When the user answers your report — a correction, a pick from a numbered list, an answer to a
+question the Bot asked — that reply belongs in the session it came from. Go back to §4; do not
+start a second one.
