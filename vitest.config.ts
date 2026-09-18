@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
@@ -15,5 +15,12 @@ export default defineConfig({
     // sanitizedSpawnEnv() fixes the leak at the source; this line makes the suite
     // correct regardless of who launches it.
     env: { NODE_ENV: 'test' },
+
+    // `website/` is a separate app with its own runner: its tests are node:test
+    // files run by `npm run test:seo` (`node --test`). Vitest's default include
+    // matches them by filename, then reports "no test suite" and fails the whole
+    // run — a green website suite showing up red here. The root tsconfig already
+    // excludes the directory for the same reason.
+    exclude: [...configDefaults.exclude, 'website/**'],
   },
 });
