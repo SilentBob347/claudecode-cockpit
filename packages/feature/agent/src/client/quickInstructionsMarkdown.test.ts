@@ -65,4 +65,45 @@ describe('quick-instruction Markdown outline', () => {
   it('reports indented text without a child marker', () => {
     expect(parseInstructionsMarkdown('Group\n  child')).toEqual({ ok: false, line: 2 });
   });
+
+  describe('multi-line instructions', () => {
+    it('encodes a real newline as a literal \\n so one instruction stays one line', () => {
+      const nodes: InstructionNode[] = [{ id: 'a', text: 'hello\nworld' }, { id: 'b', text: 'next' }];
+      // Two instructions, two outline lines — the embedded newline must not add a third.
+      expect(formatInstructionsMarkdown(nodes)).toBe('hello\\nworld\nnext');
+    });
+
+    it('decodes a literal \\n back into a real newline', () => {
+      const parsed = parseInstructionsMarkdown('hello\\nworld\nnext');
+      expect(parsed.ok && withoutIds(parsed.nodes)).toEqual(['hello\nworld', 'next']);
+    });
+
+    // The pairing that keeps storage safe: encode without decode (or vice versa)
+    // silently splits a multi-line instruction on the next save.
+    it('round-trips multi-line text through group names and children', () => {
+      const nodes: InstructionNode[] = [
+        { id: 'a', text: 'line one\nline two\nline three' },
+        { id: 'g', name: 'Group', items: [{ id: 'b', text: 'child\nsecond' }] },
+      ];
+      const text = formatInstructionsMarkdown(nodes);
+      expect(text.split('\n')).toHaveLength(3);
+      const parsed = parseInstructionsMarkdown(text);
+      expect(parsed.ok && withoutIds(parsed.nodes)).toEqual([
+        'line one\nline two\nline three',
+        { name: 'Group', items: ['child\nsecond'] },
+      ]);
+    });
+
+    it('keeps a bare child marker meaning "empty group", not a newline child', () => {
+      const parsed = parseInstructionsMarkdown('Group\n- ');
+      expect(parsed.ok && withoutIds(parsed.nodes)).toEqual([{ name: 'Group', items: [] }]);
+    });
+
+    // Documented cost of the no-backslash-escape rule (option 2A): a literal
+    // backslash-n cannot be expressed and decodes to a newline instead.
+    it('cannot express a literal backslash-n', () => {
+      const parsed = parseInstructionsMarkdown('C:\\new');
+      expect(parsed.ok && withoutIds(parsed.nodes)).toEqual(['C:\new']);
+    });
+  });
 });

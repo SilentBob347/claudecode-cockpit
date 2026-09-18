@@ -591,7 +591,7 @@
     "deleteInstructionGroupConfirm": "Deleting \"{{name}}\" also deletes the {{count}} instruction(s) inside it. Continue?",
     "editGlobalInstructions": "Edit global instructions",
     "editProjectInstructions": "Edit project instructions",
-    "quickInstructionsMarkdownHint": "One top-level entry per line. Add lines beginning with “- ” after a group name for its instructions.",
+    "quickInstructionsMarkdownHint": "One top-level entry per line. Add lines beginning with “- ” after a group name for its instructions. Write \\n for a line break inside one instruction.",
     "quickInstructionsMarkdownPlaceholder": "Continue\nDraw with text\n- Draw a login flow\n- Draw a system architecture",
     "quickInstructionsMarkdownError": "Invalid format on line {{line}}.",
     "savingQuickInstructions": "Saving...",
