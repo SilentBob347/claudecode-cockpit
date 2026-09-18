@@ -8,7 +8,7 @@
 import { Effect } from "effect"
 import {
   HTML_APPS_FILE,
-  readJsonFile,
+  readJsonFileForUpdate,
   writeJsonFile,
   withFileLock,
   isAbsolutePath,
@@ -40,7 +40,7 @@ export const GET = handler(() =>
     const data = yield* Effect.tryPromise({
       // Read under the same lock as POST writes, so a concurrent write can't be
       // read mid-truncate (which would parse-fail → empty list flash).
-      try: () => withFileLock(HTML_APPS_FILE, () => readJsonFile<HtmlAppsFile>(HTML_APPS_FILE, DEFAULT)),
+      try: () => withFileLock(HTML_APPS_FILE, () => readJsonFileForUpdate<HtmlAppsFile>(HTML_APPS_FILE, DEFAULT)),
       catch: () => null,
     }).pipe(Effect.orElseSucceed(() => DEFAULT))
 
@@ -117,7 +117,7 @@ export const POST = handler((req) =>
     const { record, alreadyExists } = yield* Effect.tryPromise({
       try: () =>
         withFileLock(HTML_APPS_FILE, async () => {
-          const data = await readJsonFile<HtmlAppsFile>(HTML_APPS_FILE, DEFAULT)
+          const data = await readJsonFileForUpdate<HtmlAppsFile>(HTML_APPS_FILE, DEFAULT)
           const existing = data.apps.find((a) => a.path === trimmed)
           if (existing) return { record: existing, alreadyExists: true }
           const next: HtmlAppRecord = {

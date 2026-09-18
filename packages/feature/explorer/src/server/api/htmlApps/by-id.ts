@@ -9,7 +9,7 @@
 import { Effect } from "effect"
 import {
   HTML_APPS_FILE,
-  readJsonFile,
+  readJsonFileForUpdate,
   writeJsonFile,
   withFileLock,
 } from "@cockpit/shared-utils"
@@ -53,7 +53,7 @@ export const DELETE = dynamicHandler<
     const removed = yield* Effect.tryPromise({
       try: () =>
         withFileLock(HTML_APPS_FILE, async () => {
-          const data = await readJsonFile<HtmlAppsFile>(HTML_APPS_FILE, DEFAULT)
+          const data = await readJsonFileForUpdate<HtmlAppsFile>(HTML_APPS_FILE, DEFAULT)
           const next = data.apps.filter((a) => a.id !== id)
           if (next.length === data.apps.length) return false
           await writeJsonFile(HTML_APPS_FILE, { apps: next })

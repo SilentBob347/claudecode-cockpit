@@ -11,7 +11,7 @@
  */
 import { Context, Effect, Layer } from "effect"
 import { join } from "path"
-import { COCKPIT_DIR, readJsonFile, writeJsonFile } from "@cockpit/shared-utils"
+import { COCKPIT_DIR, readJsonFileForUpdate, writeJsonFile } from "@cockpit/shared-utils"
 import { FSError } from "@cockpit/effect-core"
 
 // ─────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ export const ProjectServiceLive = Layer.succeed(
   ProjectService,
   ProjectService.of({
     read: Effect.tryPromise({
-      try: () => readJsonFile<ProjectsData>(PROJECTS_FILE, DEFAULT_DATA),
+      try: () => readJsonFileForUpdate<ProjectsData>(PROJECTS_FILE, DEFAULT_DATA),
       catch: (cause) =>
         new FSError({ path: PROJECTS_FILE, op: "read", cause }),
     }),

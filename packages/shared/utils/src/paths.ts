@@ -25,6 +25,8 @@ export const NOTE_FILE = join(COCKPIT_DIR, 'note.md');
 export const SCHEDULED_TASKS_FILE = join(COCKPIT_DIR, 'scheduled-tasks.json');
 export const SETTINGS_FILE = join(COCKPIT_DIR, 'settings.json');
 export const SKILLS_FILE = join(COCKPIT_DIR, 'skills.json');
+export const BOTS_FILE = join(COCKPIT_DIR, 'bot.json');
+export const BOTS_DIR = join(COCKPIT_DIR, 'bots');
 export const CODEX_SESSION_INDEX_FILE = join(COCKPIT_DIR, 'codex-session-index.json');
 // Global registry of HTML "mini-app" file paths, launched as console browser
 // bubbles. Same shape/mechanics as skills.json (manual add/remove of absolute
@@ -45,6 +47,17 @@ export const APPS_DIR = join(process.env.COCKPIT_ROOT || process.cwd(), 'apps');
 // move with the installation and must never be confused with the user's own skill
 // data under COCKPIT_DIR (~/.cockpit/skills, where resolved copies are written).
 export const BUILTIN_SKILLS_SRC_DIR = join(process.env.COCKPIT_ROOT || process.cwd(), 'skills');
+
+// Built-in Bots shipped inside the package (/bots/<name>/BOT.md). Same
+// install-root resolution as APPS_DIR, and never persisted into bot.json.
+//
+// Unlike a builtin skill, NOTHING is ever copied out of here into COCKPIT_DIR:
+// a Bot's directory is the thing a Bot writes to, and this one lives in the
+// install root — root-owned under `npm i -g`, replaced wholesale on upgrade,
+// and shared by every COCKPIT_HOME. A builtin Bot is therefore read-only, and
+// says so in its own BOT.md. A Bot that must remember belongs in ~/.cockpit or
+// the user's own directory, registered in bot.json like any other.
+export const BUILTIN_BOTS_SRC_DIR = join(process.env.COCKPIT_ROOT || process.cwd(), 'bots');
 
 /**
  * Write to the signal file to notify ReviewWatcher of a comment change.
@@ -631,7 +644,14 @@ export async function ensureParentDir(filePath: string): Promise<void> {
 }
 
 /**
- * Read a JSON file, return default value if not exists or invalid
+ * Read a JSON file; missing OR malformed both yield `defaultValue`.
+ *
+ * Safe only when the result is read and discarded. **If you write the result
+ * back, use readJsonFileForUpdate instead** — collapsing "corrupt" into the
+ * same answer as "absent" means one stray comma in a hand-edited registry
+ * reads as empty, and the next write persists that emptiness. A registry the
+ * user is invited to edit by hand (bot.json, skills.json) loses every entry
+ * that way, with a success toast.
  */
 export async function readJsonFile<T>(filePath: string, defaultValue: T): Promise<T> {
   try {
@@ -639,6 +659,29 @@ export async function readJsonFile<T>(filePath: string, defaultValue: T): Promis
     return JSON.parse(content) as T;
   } catch {
     return defaultValue;
+  }
+}
+
+/**
+ * Read a JSON file that is about to be written back: absent → `defaultValue`,
+ * **malformed → throws**. The distinction readJsonFile cannot make is exactly
+ * the one a read-modify-write cycle needs, so the caller fails loudly instead
+ * of replacing the user's file with the default.
+ */
+export async function readJsonFileForUpdate<T>(filePath: string, defaultValue: T): Promise<T> {
+  let content: string;
+  try {
+    content = await readFile(filePath, 'utf-8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return defaultValue;
+    throw err;
+  }
+  try {
+    return JSON.parse(content) as T;
+  } catch (err) {
+    throw new Error(
+      `${filePath} is not valid JSON, refusing to overwrite it: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -700,7 +743,9 @@ export function mutateJsonFile<T>(
   mutate: (current: T) => T | Promise<T>,
 ): Promise<T> {
   return withFileLock(filePath, async () => {
-    const current = await readJsonFile<T>(filePath, defaultValue);
+    // ForUpdate, not readJsonFile: this helper's whole purpose is writing the
+    // result back, so a parse failure must abort rather than persist the default.
+    const current = await readJsonFileForUpdate<T>(filePath, defaultValue);
     const next = await mutate(current);
     await writeJsonFile(filePath, next);
     return next;

@@ -1,6 +1,6 @@
 import { existsSync } from 'fs';
 import {
-  SCHEDULED_TASKS_FILE, readJsonFile, writeJsonFile, mutateJsonFile, withFileLock,
+  SCHEDULED_TASKS_FILE, readJsonFile, readJsonFileForUpdate, writeJsonFile, mutateJsonFile, withFileLock,
   getSessionFilePath,
   getClaudeSessionPath, getOllamaSessionPath,
   getDeepseekBuiltinSessionPath, getKimiBuiltinSessionPath,
@@ -381,6 +381,8 @@ class ScheduledTaskManager {
   private firing = new Set<string>();
   private initialized = false;
   private initPromise: Promise<void> | null = null;
+  /** Set when the task file exists but does not parse; see init(). */
+  private loadFailed = false;
   private onTaskFired: TaskFiredCallback | null = null;
 
   /**
@@ -402,7 +404,24 @@ class ScheduledTaskManager {
     if (this.initialized) return;
     this.initialized = true;
 
-    this.tasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+    // readJsonFileForUpdate throws on a malformed file (deliberately — see its
+    // doc comment). This is the boot path: server.mjs awaits init() with no
+    // error boundary, so letting it propagate would turn one bad byte in
+    // scheduled-tasks.json into "Cockpit will not start". Both extremes are
+    // wrong; the middle is to run with no timers, say so loudly, and leave the
+    // file alone. Every write path still refuses (mutateJsonFile uses the same
+    // strict read), so nothing overwrites what the user has to repair by hand.
+    try {
+      this.tasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+    } catch (error) {
+      this.loadFailed = true;
+      this.tasks = [];
+      console.error(
+        `[ScheduledTaskManager] ${SCHEDULED_TASKS_FILE} could not be read — NO scheduled task will fire until it is fixed. The file has been left untouched:`,
+        error,
+      );
+      return;
+    }
 
     console.log(`[ScheduledTaskManager] Loaded ${this.tasks.length} scheduled tasks`);
 
@@ -416,6 +435,11 @@ class ScheduledTaskManager {
     await this.saveToDisk();
   }
 
+  /** True when init() could not parse the task file: no timers, and no writes. */
+  isLoadFailed(): boolean {
+    return this.loadFailed;
+  }
+
   /**
    * Register a task-fired callback (used for WS broadcast).
    */
@@ -427,7 +451,7 @@ class ScheduledTaskManager {
    * Read tasks from disk (avoids in-memory inconsistency between dual module instances).
    */
   private async readTasksFromDisk(): Promise<ScheduledTask[]> {
-    return readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+    return readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
   }
 
   /**
@@ -476,7 +500,7 @@ class ScheduledTaskManager {
     // Locked read-modify-write so a concurrent fireTask/saveToDisk can't interleave
     // and revert this update (or vice-versa).
     const task = await withFileLock(SCHEDULED_TASKS_FILE, async () => {
-      const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+      const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
       const idx = allTasks.findIndex(t => t.id === id);
       if (idx === -1) return null;
       const updated = { ...allTasks[idx], ...fields };
@@ -504,7 +528,7 @@ class ScheduledTaskManager {
   async deleteTask(id: string): Promise<boolean> {
     await this.ensureInit();
     const removed = await withFileLock(SCHEDULED_TASKS_FILE, async () => {
-      const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+      const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
       const idx = allTasks.findIndex(t => t.id === id);
       if (idx === -1) return false;
       allTasks.splice(idx, 1);
@@ -534,7 +558,7 @@ class ScheduledTaskManager {
    */
   async resumeTask(id: string): Promise<ScheduledTask | null> {
     // Read latest data from disk
-    const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+    const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
     const task = allTasks.find(t => t.id === id);
     if (!task) return null;
 
@@ -569,7 +593,7 @@ class ScheduledTaskManager {
    */
   async triggerTask(id: string): Promise<boolean> {
     await this.ensureInit();
-    const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+    const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
     const task = allTasks.find(t => t.id === id);
     if (!task) return false;
 
@@ -642,7 +666,7 @@ class ScheduledTaskManager {
   async markReadBySessionId(sessionId: string): Promise<void> {
     await this.ensureInit();
     await withFileLock(SCHEDULED_TASKS_FILE, async () => {
-      const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+      const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
       let changed = false;
       for (const task of allTasks) {
         if (task.sessionId === sessionId && task.unread) {
@@ -660,7 +684,7 @@ class ScheduledTaskManager {
   async markAllRead(): Promise<void> {
     await this.ensureInit();
     await withFileLock(SCHEDULED_TASKS_FILE, async () => {
-      const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+      const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
       let changed = false;
       for (const task of allTasks) {
         if (task.unread) {
@@ -678,7 +702,7 @@ class ScheduledTaskManager {
   async reorderTasks(orderedIds: string[]): Promise<void> {
     await this.ensureInit();
     await withFileLock(SCHEDULED_TASKS_FILE, async () => {
-      const allTasks = await readJsonFile<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
+      const allTasks = await readJsonFileForUpdate<ScheduledTask[]>(SCHEDULED_TASKS_FILE, []);
       for (let i = 0; i < orderedIds.length; i++) {
         const task = allTasks.find(t => t.id === orderedIds[i]);
         if (task) task.sortIndex = i;
@@ -836,6 +860,9 @@ class ScheduledTaskManager {
   }
 
   private async saveToDisk(): Promise<void> {
+    // In-memory state is empty because the file could not be parsed, not because
+    // there are no tasks. Writing it back is exactly the data loss this guards.
+    if (this.loadFailed) return;
     try {
       // Single instance per data dir (enforced at startup): the in-memory set IS the whole
       // file. The lock serializes against updateTask/addTask/etc.

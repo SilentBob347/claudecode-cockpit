@@ -9,7 +9,7 @@
 import { Effect } from "effect"
 import {
   SKILLS_FILE,
-  readJsonFile,
+  readJsonFileForUpdate,
   writeJsonFile,
   withFileLock,
 } from "@cockpit/shared-utils"
@@ -42,7 +42,7 @@ export const DELETE = dynamicHandler<
     const removed = yield* Effect.tryPromise({
       try: () =>
         withFileLock(SKILLS_FILE, async () => {
-          const data = await readJsonFile<SkillsFile>(SKILLS_FILE, DEFAULT)
+          const data = await readJsonFileForUpdate<SkillsFile>(SKILLS_FILE, DEFAULT)
           const next = data.skills.filter((s) => s.id !== id)
           if (next.length === data.skills.length) return false
           await writeJsonFile(SKILLS_FILE, { skills: next })

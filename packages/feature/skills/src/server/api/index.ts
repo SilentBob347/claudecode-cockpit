@@ -4,7 +4,7 @@
 import { Effect } from "effect"
 import {
   SKILLS_FILE,
-  readJsonFile,
+  readJsonFileForUpdate,
   writeJsonFile,
   withFileLock,
 } from "@cockpit/shared-utils"
@@ -32,7 +32,7 @@ function makeId(): string {
 export const GET = handler(() =>
   Effect.gen(function* () {
     const data = yield* Effect.tryPromise({
-      try: () => readJsonFile<SkillsFile>(SKILLS_FILE, DEFAULT),
+      try: () => readJsonFileForUpdate<SkillsFile>(SKILLS_FILE, DEFAULT),
       catch: () => null,
     }).pipe(Effect.orElseSucceed(() => DEFAULT))
 
@@ -95,7 +95,7 @@ export const POST = handler((req) =>
     const { record, alreadyExists } = yield* Effect.tryPromise({
       try: () =>
         withFileLock(SKILLS_FILE, async () => {
-          const data = await readJsonFile<SkillsFile>(SKILLS_FILE, DEFAULT)
+          const data = await readJsonFileForUpdate<SkillsFile>(SKILLS_FILE, DEFAULT)
           const existing = data.skills.find((s) => s.path === trimmed)
           if (existing) return { record: existing, alreadyExists: true }
           const next: SkillRecord = {
