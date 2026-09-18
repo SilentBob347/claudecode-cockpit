@@ -32,17 +32,19 @@
  * The obvious objection to copying anything out of an install is drift: the copy
  * stops receiving updates the day it is made, and a Bot frozen at whatever
  * shipped that week is a slow, invisible regression. `syncBuiltinBot` answers it
- * by remembering the hash of the seed each copy was installed from, which is
- * enough to tell the two cases apart — an untouched copy is replaced when a
- * newer seed ships, and one the user has edited is never touched again. Neither
- * outcome needs a prompt, and neither loses work.
+ * by remembering the hash of every file it installed, which is enough to tell
+ * the cases apart per file — a file still as we wrote it is replaced when a
+ * newer one ships, a file its owner has changed never is, and a file we never
+ * installed (the Bot's own memory) is not ours to have an opinion about. No
+ * prompt, and no lost work.
  *
  * Consequences worth stating, because they are the point rather than accidents:
  *
- * - **The copy is the user's the moment they edit it.** Until then it tracks the
- *   shipped version; after, it is theirs and upgrades leave it alone. Deleting it
- *   is the "reset to shipped" gesture — the next listing installs it afresh, and
- *   starts tracking again.
+ * - **Each file is the user's the moment they edit it** — not the whole Bot.
+ *   Editing the persona keeps the persona and still takes BOT.md fixes, and a
+ *   Bot that records memory goes on being maintained. Deleting the folder is the
+ *   "reset to shipped" gesture: the next listing installs it afresh and tracks
+ *   it again.
  * - **A broken copy is reported, not hidden.** A malformed *seed* is skipped
  *   (nobody can fix it from the UI), but a copy edited into an invalid state is
  *   listed as invalid with the reason, because the user owns those files and is
@@ -61,11 +63,13 @@
 import { createHash } from 'crypto';
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -98,18 +102,25 @@ const hasManifest = (dir: string): boolean => {
 };
 
 /**
- * What we last installed for a built-in, so an upgrade can tell an untouched
- * copy (safe to replace) from one the user has made their own (never touched
- * again). Kept in one file beside the copies rather than inside them, so a Bot's
- * own directory stays exactly what the user put there.
+ * What we last installed for a built-in, file by file, so an upgrade can tell
+ * three things apart: a file still exactly as we wrote it (safe to replace), one
+ * the user or the Bot has since changed (never touched), and one that is not
+ * ours at all (never touched either). Kept in one file beside the copies rather
+ * than inside them, so a Bot's own directory stays exactly what it put there.
+ *
+ * Per file rather than per Bot, because a Bot with memory writes into its own
+ * directory on an ordinary turn. Judging the tree as a whole would read the
+ * first remembered fact as "the user has taken this over" and cut the Bot off
+ * from every future BOT.md fix — silently, and for good. Per file, memory lands
+ * in paths we never installed and the shipped files go on being maintained.
  */
 const INSTALL_STATE_FILE = join(BOTS_DIR, '.builtin-installs.json');
 
 interface InstallRecord {
-  /** Hash of the seed this copy was installed from. */
+  /** Hash of the whole seed tree as last reconciled — the "anything new?" gate. */
   readonly seed: string;
-  /** Set once the copy diverged from that seed; stops all future refreshes. */
-  readonly edited?: boolean;
+  /** Hash of each file we installed, keyed by path relative to the Bot directory. */
+  readonly files: Readonly<Record<string, string>>;
 }
 
 type InstallState = Record<string, InstallRecord>;
@@ -119,8 +130,8 @@ const readInstallState = (): InstallState => {
     const raw: unknown = JSON.parse(readFileSync(INSTALL_STATE_FILE, 'utf-8'));
     return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as InstallState) : {};
   } catch {
-    // Missing or corrupt reads as "nothing is managed", which only costs the
-    // refresh: every copy is then left exactly as the user has it.
+    // Missing or corrupt reads as "nothing is managed", which costs only the
+    // refresh: every copy is then left exactly as its owner has it.
     return {};
   }
 };
@@ -138,72 +149,171 @@ const writeInstallState = (state: InstallState): void => {
   }
 };
 
+const hashFile = (file: string): string => createHash('sha256').update(readFileSync(file)).digest('hex');
+
 /**
- * Content hash of a directory tree — relative paths and bytes, order-independent
- * — used only to answer "has this copy been touched since we wrote it?".
+ * Every file in a tree, as `<path relative to the tree> → content hash`.
  *
- * Contents rather than mtimes: npm rewrites timestamps on install, and a copy is
- * "the same Bot" when the files say the same thing, whatever the clock did.
+ * Contents rather than mtimes: npm rewrites timestamps on install, and a file is
+ * "still the one we wrote" when the bytes say so, whatever the clock did.
  */
-function hashTree(dir: string): string {
-  const hash = createHash('sha256');
+function fileHashes(dir: string): Map<string, string> {
+  const out = new Map<string, string>();
   const walk = (rel: string): void => {
-    const entries = readdirSync(join(dir, rel), { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
-    for (const entry of entries) {
+    for (const entry of readdirSync(join(dir, rel), { withFileTypes: true })) {
       const child = rel ? `${rel}/${entry.name}` : entry.name;
       if (entry.isDirectory()) walk(child);
-      else if (entry.isFile()) hash.update(`${child}\0`).update(readFileSync(join(dir, child))).update('\0');
+      else if (entry.isFile()) out.set(child, hashFile(join(dir, child)));
     }
   };
   walk('');
-  return hash.digest('hex');
+  return out;
 }
 
+/** One hash standing for a whole tree, so "did anything ship?" is a single compare. */
+const treeHash = (files: ReadonlyMap<string, string>): string => {
+  const hash = createHash('sha256');
+  for (const rel of [...files.keys()].sort()) hash.update(`${rel}\0${files.get(rel)!}\0`);
+  return hash.digest('hex');
+};
+
 /**
- * Copy `from` onto `to` through a staging directory, so `to` is either the old
- * tree or the whole new one and never a half-written mixture — a half tree would
- * be indistinguishable from a Bot for good.
+ * Move `staging` into place at `dest`, keeping whatever was there until the
+ * moment it is replaced: `dest` is the old tree or the whole new one, never a
+ * half-written mixture. A half tree would be indistinguishable from a Bot for
+ * good, so there is no point at which one exists.
  */
-function copyTreeOver(from: string, to: string, label: string): void {
-  mkdirSync(BOTS_DIR, { recursive: true });
-  const staging = join(BOTS_DIR, `.${label}.installing-${process.pid}-${Date.now()}`);
+function swapIn(staging: string, dest: string): void {
   const retired = `${staging}.old`;
-  rmSync(staging, { recursive: true, force: true });
+  let moved = false;
   try {
-    cpSync(from, staging, { recursive: true });
-    let hasOld = false;
     try {
-      renameSync(to, retired);
-      hasOld = true;
+      renameSync(dest, retired);
+      moved = true;
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') throw err;
     }
-    renameSync(staging, to);
-    if (hasOld) rmSync(retired, { recursive: true, force: true });
+    renameSync(staging, dest);
+    if (moved) rmSync(retired, { recursive: true, force: true });
+  } catch (err) {
+    // The old tree is already out of the way and the new one did not land:
+    // put the Bot back rather than leaving the user with no directory at all.
+    if (moved && !existsSync(dest)) renameSync(retired, dest);
+    throw err;
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+const stagingDir = (label: string): string => {
+  const staging = join(BOTS_DIR, `.${label}.installing-${process.pid}-${Date.now()}`);
+  mkdirSync(BOTS_DIR, { recursive: true });
+  rmSync(staging, { recursive: true, force: true });
+  return staging;
+};
+
+/** Remove `rel` and any directories it leaves empty behind it. */
+function removeAndPrune(root: string, rel: string): void {
+  rmSync(join(root, rel), { force: true });
+  for (let dir = path.dirname(rel); dir && dir !== '.'; dir = path.dirname(dir)) {
+    try {
+      if (readdirSync(join(root, dir)).length > 0) return;
+      // rmdirSync, not rmSync: the latter refuses a directory without
+      // `recursive`, and `recursive` here would delete a tree we just checked
+      // was empty for the wrong reason if it ever stopped being empty.
+      rmdirSync(join(root, dir));
+    } catch {
+      return;
+    }
+  }
+}
+
+/**
+ * Bring an installed copy back in line with a newer seed, file by file, and
+ * return what the copy now holds of ours.
+ *
+ * For each path, in this order:
+ *
+ * - **Not ours, and new in this seed** — the seed grew a file and the user has
+ *   nothing at that path, so install it. (If they *do* have something there, it
+ *   is theirs and stays.)
+ * - **Ours, and changed since we wrote it** — the user edited it, or the Bot
+ *   recorded something into it. It is theirs from now on, at this and every
+ *   later version.
+ * - **Ours, untouched, and gone from the seed** — delete it, so a file dropped
+ *   upstream does not linger as a Bot instruction nobody wrote.
+ * - **Ours, untouched, and newer upstream** — replace it. This is the case that
+ *   makes copying a built-in out safe in the first place.
+ *
+ * Every write lands through one staged swap, so the copy is never a mixture of
+ * two versions, and the Bot's own files come across untouched because the
+ * staging tree starts as a copy of the current one.
+ */
+function refreshInstalled(
+  name: string,
+  dest: string,
+  installed: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const seed = builtinBotSeedDir(name);
+  const seedFiles = fileHashes(seed);
+  const copyFiles = fileHashes(dest);
+  const next: Record<string, string> = { ...installed };
+  const writes: string[] = [];
+  const deletes: string[] = [];
+
+  for (const rel of new Set([...Object.keys(installed), ...seedFiles.keys()])) {
+    const ours = installed[rel];
+    const shipped = seedFiles.get(rel);
+    const current = copyFiles.get(rel);
+    if (ours === undefined) {
+      if (shipped !== undefined && current === undefined) {
+        writes.push(rel);
+        next[rel] = shipped;
+      }
+      continue;
+    }
+    if (current !== ours) continue;
+    if (shipped === undefined) {
+      deletes.push(rel);
+      delete next[rel];
+    } else if (shipped !== ours) {
+      writes.push(rel);
+      next[rel] = shipped;
+    }
+  }
+
+  if (writes.length === 0 && deletes.length === 0) return next;
+  const staging = stagingDir(name);
+  try {
+    cpSync(dest, staging, { recursive: true });
+    for (const rel of deletes) removeAndPrune(staging, rel);
+    for (const rel of writes) {
+      mkdirSync(join(staging, path.dirname(rel)), { recursive: true });
+      cpSync(join(seed, rel), join(staging, rel));
+    }
+    swapIn(staging, dest);
   } catch (err) {
     rmSync(staging, { recursive: true, force: true });
     throw err;
   }
+  return next;
 }
 
 /**
  * Bring a built-in's copy under BOTS_DIR in line with the shipped seed, and
  * return the directory it now lives in.
  *
- * Three cases, in the order they are checked:
+ * Three cases:
  *
- * 1. **No copy** — install one and record the seed hash. Also how "delete the
- *    folder" works as a reset, `edited` included.
- * 2. **Copy matches what we installed, seed has since changed** — an upgrade
- *    shipped a better BOT.md and nobody has touched this one, so replace it.
- *    This is what makes copying out safe: an unedited built-in keeps improving.
- * 3. **Copy differs from what we installed** — the user has made it theirs.
- *    Record that once and never look again: their edits outrank our updates, and
- *    the Bot they tuned must not silently revert on an upgrade.
+ * 1. **No copy** — install one and record every file. Deleting the folder is
+ *    therefore a full reset: the shipped version comes back, tracked afresh.
+ * 2. **Copy, and the seed has not changed since we last looked** — the common
+ *    case, and one tree hash answers it.
+ * 3. **Copy, newer seed** — reconcile file by file (`refreshInstalled`).
  *
- * A copy with no record at all (predating this file, or a folder the user
- * created under a name a later release happens to ship) is treated as case 3
- * from the start — we did not put it there, so we do not overwrite it.
+ * A copy with no record at all is left alone in perpetuity: it predates this
+ * bookkeeping, or it is a folder the user made under a name a later release
+ * happens to ship. Either way we did not put it there, so we do not touch it.
  */
 function syncBuiltinBot(name: string, state: InstallState): { readonly dir: string; readonly changed: boolean } {
   // `name` is a directory name read off disk; treat it as untrusted anyway, so
@@ -216,27 +326,29 @@ function syncBuiltinBot(name: string, state: InstallState): { readonly dir: stri
   // Keyed on the copy holding a BOT.md rather than merely existing, so an empty
   // folder left by a partial delete does not shadow the Bot with nothing.
   if (!hasManifest(dest)) {
+    const seedFiles = fileHashes(seed);
+    const staging = stagingDir(name);
     try {
-      copyTreeOver(seed, dest, name);
+      cpSync(seed, staging, { recursive: true });
+      swapIn(staging, dest);
     } catch (err) {
       // Two processes racing the first install; the winner copied the same
       // bytes, so this is a success.
       if (!hasManifest(dest)) throw err;
     }
-    state[name] = { seed: hashTree(seed) };
+    state[name] = { seed: treeHash(seedFiles), files: Object.fromEntries(seedFiles) };
     return { dir: dest, changed: true };
   }
 
   const record = state[name];
-  if (!record || record.edited) return { dir: dest, changed: false };
-  const seedHash = hashTree(seed);
+  if (!record?.files) return { dir: dest, changed: false };
+  const seedHash = treeHash(fileHashes(seed));
   if (record.seed === seedHash) return { dir: dest, changed: false };
-  if (hashTree(dest) !== record.seed) {
-    state[name] = { ...record, edited: true };
-    return { dir: dest, changed: true };
-  }
-  copyTreeOver(seed, dest, name);
-  state[name] = { seed: seedHash };
+  // A Bot session is mid-write (bot-turn's lock). Its files are about to change
+  // under us, and the staged swap would drop whatever it writes between our copy
+  // and our rename. The update is not urgent; take it on a later listing.
+  if (existsSync(join(dest, '.locks', 'write'))) return { dir: dest, changed: false };
+  state[name] = { seed: seedHash, files: refreshInstalled(name, dest, record.files) };
   return { dir: dest, changed: true };
 }
 

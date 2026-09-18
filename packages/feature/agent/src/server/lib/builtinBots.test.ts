@@ -139,22 +139,92 @@ describe('scan behaviour', () => {
     }
   });
 
-  it('never refreshes a copy the user has edited, however new the shipped one is', () => {
+  it('never refreshes a file the user has edited, however new the shipped one is', () => {
     scoped.listBuiltinBots();
     fs.writeFileSync(path.join(userDir('good'), 'BOT.md'), '---\nname: good\ndescription: Mine\n---\n');
-    fs.writeFileSync(path.join(userDir('good'), 'memory.md'), 'kept');
     makeDir('good', '---\nname: good\ndescription: Fine, and now better\n---\n');
     try {
-      // Reverting a directory the user has been teaching is data loss, and an
-      // upgrade is the last moment it would be noticed.
+      // Reverting a file the user has been teaching is data loss, and an upgrade
+      // is the last moment it would be noticed.
       const again = scoped.listBuiltinBots();
       expect(again[0].valid && again[0].description).toBe('Mine');
-      expect(fs.readFileSync(path.join(userDir('good'), 'memory.md'), 'utf-8')).toBe('kept');
 
       // And it stays that way for every later version, not just this one.
       makeDir('good', '---\nname: good\ndescription: Newer still\n---\n');
       const third = scoped.listBuiltinBots();
       expect(third[0].valid && third[0].description).toBe('Mine');
+    } finally {
+      makeDir('good', '---\nname: good\ndescription: Fine\n---\n');
+    }
+  });
+
+  it('keeps maintaining the shipped files of a Bot that has written memory', () => {
+    // The reason tracking is per file. A Bot with memory writes into its own
+    // directory on an ordinary turn; judging the tree as a whole would read the
+    // first remembered fact as "the user has taken this over" and cut the Bot off
+    // from every later BOT.md fix, silently and for good.
+    scoped.listBuiltinBots();
+    fs.mkdirSync(path.join(userDir('good'), 'memory'), { recursive: true });
+    fs.writeFileSync(path.join(userDir('good'), 'memory', 'facts.md'), '## A fact\n');
+    makeDir('good', '---\nname: good\ndescription: Fine, and now better\n---\n');
+    try {
+      const again = scoped.listBuiltinBots();
+      expect(again[0].valid && again[0].description).toBe('Fine, and now better');
+      // …and the memory survives the update, which is the other half of it.
+      expect(fs.readFileSync(path.join(userDir('good'), 'memory', 'facts.md'), 'utf-8')).toBe('## A fact\n');
+    } finally {
+      makeDir('good', '---\nname: good\ndescription: Fine\n---\n');
+    }
+  });
+
+  it('edits to one shipped file do not freeze the others', () => {
+    fs.writeFileSync(path.join(root, 'bots', 'good', 'notes.md'), 'v1\n');
+    try {
+      scoped.listBuiltinBots();
+      fs.writeFileSync(path.join(userDir('good'), 'notes.md'), 'mine\n');
+      makeDir('good', '---\nname: good\ndescription: Fine, and now better\n---\n');
+      fs.writeFileSync(path.join(root, 'bots', 'good', 'notes.md'), 'v2\n');
+
+      const again = scoped.listBuiltinBots();
+      expect(again[0].valid && again[0].description).toBe('Fine, and now better');
+      expect(fs.readFileSync(path.join(userDir('good'), 'notes.md'), 'utf-8')).toBe('mine\n');
+    } finally {
+      fs.rmSync(path.join(root, 'bots', 'good', 'notes.md'), { force: true });
+      makeDir('good', '---\nname: good\ndescription: Fine\n---\n');
+    }
+  });
+
+  it('installs a file a later version adds, and removes one it drops', () => {
+    scoped.listBuiltinBots();
+    fs.mkdirSync(path.join(root, 'bots', 'good', 'identity'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'bots', 'good', 'identity', 'persona.md'), 'who\n');
+    try {
+      scoped.listBuiltinBots();
+      expect(fs.readFileSync(path.join(userDir('good'), 'identity', 'persona.md'), 'utf-8')).toBe('who\n');
+
+      // Dropped upstream: an untouched copy of it must go too, or a file nobody
+      // wrote lingers as a standing instruction to the Bot.
+      fs.rmSync(path.join(root, 'bots', 'good', 'identity'), { recursive: true });
+      scoped.listBuiltinBots();
+      expect(fs.existsSync(path.join(userDir('good'), 'identity', 'persona.md'))).toBe(false);
+      // …and the directory it emptied does not linger either.
+      expect(fs.existsSync(path.join(userDir('good'), 'identity'))).toBe(false);
+    } finally {
+      fs.rmSync(path.join(root, 'bots', 'good', 'identity'), { recursive: true, force: true });
+    }
+  });
+
+  it('defers the update while a Bot session holds the write lock', () => {
+    scoped.listBuiltinBots();
+    fs.mkdirSync(path.join(userDir('good'), '.locks', 'write'), { recursive: true });
+    makeDir('good', '---\nname: good\ndescription: Fine, and now better\n---\n');
+    try {
+      // The staged swap would drop whatever that session writes between our copy
+      // and our rename. Nothing here is urgent enough to race a Bot mid-write.
+      expect(scoped.listBuiltinBots()[0]).toMatchObject({ description: 'Fine' });
+
+      fs.rmSync(path.join(userDir('good'), '.locks'), { recursive: true });
+      expect(scoped.listBuiltinBots()[0]).toMatchObject({ description: 'Fine, and now better' });
     } finally {
       makeDir('good', '---\nname: good\ndescription: Fine\n---\n');
     }

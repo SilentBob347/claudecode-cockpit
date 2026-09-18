@@ -36,16 +36,25 @@ The install root cannot host a Bot: it is root-owned under `npm i -g`, replaced
 wholesale on upgrade, and shared by every `COCKPIT_HOME`, so a Bot living there could
 not be opened, edited or written to. Hence the copy. The obvious cost of any copy is
 drift — it stops receiving `BOT.md` updates the day it is made — and that is not paid
-here, because the install is *tracked*:
+here, because the install is *tracked, file by file*.
+`~/.cockpit/bots/.builtin-installs.json` holds the hash of every file installed, and
+each one falls into one of four cases when a newer version ships:
 
-- `~/.cockpit/bots/.builtin-installs.json` records the hash of the seed each copy was
-  installed from.
-- Copy still matches that hash and a newer seed shipped → the copy is replaced. An
-  untouched built-in keeps improving with every upgrade.
-- Copy no longer matches → the user has made it theirs. It is never touched again, at
-  this or any later version.
-- Deleting the folder resets it: the next listing installs the shipped version and
-  starts tracking again.
+| The file | On upgrade |
+|---|---|
+| still exactly as we wrote it | replaced with the new version |
+| changed since we wrote it (by the user or by the Bot) | left alone, at this and every later version |
+| gone from the new version, ours and untouched | deleted, so it stops instructing the Bot |
+| never installed by us — the Bot's own memory | untouched, and not our business |
+
+Per file, not per Bot, and the reason is memory: a Bot with memory writes into its own
+directory on an ordinary turn, so judging the tree as a whole would read the first
+remembered fact as "the user has taken this over" and cut the Bot off from every later
+fix. Per file, memory lands in paths we never installed and the shipped files go on
+being maintained. Deleting the folder resets everything and starts tracking afresh.
+
+Updates are staged and swapped in whole, and are skipped entirely while a Bot session
+holds `.locks/write` — nothing here is urgent enough to race a Bot mid-write.
 
 Built-in *skills* solve the same problem differently — they rewrite their copy on
 every dispatch — which works only because a skill directory has no user state in it.
@@ -53,15 +62,20 @@ A Bot's directory does, which is why this one compares before it writes.
 
 ## Memory
 
-A built-in Bot's directory is writable like any other, so `bot-turn`'s writing
-protocol works. Whether a given built-in *should* use it is the Bot's own decision,
-stated in its `BOT.md`. `cockpit-helper` opts out: it answers every question by
-fetching opencockpit.dev live in the same turn, so a stored copy would only ever be a
-stale answer waiting to be given.
+A built-in Bot's directory is writable like any other, so `bot-turn`'s writing protocol
+applies unchanged and a built-in may keep memory. Two things are true of a built-in's
+memory in particular, and its `BOT.md` is the only place they can be said:
 
-Bear in mind that memory a built-in writes lives only in that user's copy, and that
-editing the Bot's own files is what stops future upgrades from reaching it (above).
-Both are fine; neither is obvious from inside a session.
+- **It lives in that user's copy only.** Nothing is shared between installs, and
+  nothing comes back to this repository.
+- **What must never be recorded is Bot-specific.** `writing.md` already rules out
+  anything re-readable from the source system; each built-in has to name what its
+  source system is. `cockpit-helper` names opencockpit.dev — it remembers the person
+  it works with, and never the site, because the site is always its own newest copy
+  one fetch away while a stored copy is a stale answer waiting to be given.
+
+A built-in that has nothing worth remembering should say so in its `BOT.md` rather
+than leaving the question open: an empty `memory/` invites a session to fill it.
 
 ## Adding one
 
