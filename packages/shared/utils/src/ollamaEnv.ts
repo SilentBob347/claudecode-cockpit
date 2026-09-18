@@ -25,6 +25,13 @@ const DEFAULT_API_KEY = 'ollama';
 export interface OllamaStoredConfig {
   baseUrl?: string;
   apiKey?: string;
+  /**
+   * The model the last ollama run actually used, on any session. Ollama serves whatever
+   * this machine pulled, so there is no id worth hardcoding as "the default" — this is the
+   * only honest one, and it is what a new session falls back to before the catalog's first
+   * entry (engines/ollama.ts). Written by dispatch, not by the config route.
+   */
+  lastModel?: string;
 }
 
 type ConfigSource = 'file' | 'env' | 'default';
@@ -75,8 +82,29 @@ export async function writeOllamaStoredConfig(
       if (v) next.apiKey = v;
       else delete next.apiKey;
     }
+    if (patch.lastModel !== undefined) {
+      const v = patch.lastModel.trim();
+      if (v) next.lastModel = v;
+      else delete next.lastModel;
+    }
     return next;
   });
+}
+
+/** The model the last ollama run used, or undefined when none ever has. */
+export async function readOllamaLastModel(): Promise<string | undefined> {
+  return (await readOllamaStoredConfig()).lastModel?.trim() || undefined;
+}
+
+/**
+ * Remember the model a run resolved to. A no-op when it is already the recorded one — this
+ * is called on every dispatch and mutateJsonFile always rewrites the file.
+ */
+export async function rememberOllamaLastModel(model: string): Promise<void> {
+  const v = model.trim();
+  if (!v) return;
+  if ((await readOllamaStoredConfig()).lastModel === v) return;
+  await writeOllamaStoredConfig({ lastModel: v });
 }
 
 /** Server root (no /v1/), resolved by priority. */

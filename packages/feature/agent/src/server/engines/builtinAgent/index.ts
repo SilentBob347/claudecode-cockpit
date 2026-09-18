@@ -18,16 +18,24 @@ import { randomUUID } from 'crypto';
 import { buildSystemPrompt } from './prompt';
 import { appendAssistantMessage, appendToolResult, appendUserText, readSessionMessages } from './session';
 import { createTools } from './tools';
+import { recordSessionModel } from '../sessionModel';
 import { consumeStream, emitResultMessage } from './stream';
 import type { AgentContext } from './types';
 import type { DispatchParams, RunCtx } from '../types';
 import { formatProviderError } from '../shared/providerError';
 
 export interface BuiltinAgentConfig {
+  /** Engine id — the key this engine's per-session model is recorded under (sessionModel.ts). */
+  engine: string;
   /** Transcript store root — always from paths.ts getBuiltinSessionsRoot (COCKPIT_HOME-aware). */
   sessionsRoot: string;
-  /** Model used when the request carries none. */
-  defaultModel: string;
+  /**
+   * Model used when the request carries none. Optional because it is a last resort, not the
+   * resolution: every engine's `preflight` settles `params.model` before dispatch starts a
+   * run — against a vendor's stable id list (anthropicCompat) or against the local machine
+   * (ollama, which has no id worth compiling in and therefore sets none here).
+   */
+  defaultModel?: string;
   /** Provider factory for the resolved model name. */
   createModel: (model: string) => Promise<LanguageModelV3>;
   /**
@@ -56,7 +64,14 @@ export async function runBuiltinAgent(ctx: RunCtx, config: BuiltinAgentConfig): 
   const sid = ctx.currentKey(); // the built-in agent uses the runId/sessionId as its session id (no rekey)
   ctx.rekey(sid); // set the returned sessionId = sid (+ 'loading' global state)
   const model = (typeof ctx.params.model === 'string' && ctx.params.model) || config.defaultModel;
+  if (!model) throw new Error(`No model resolved for this ${config.engine} run`); // preflight's job
   const prompt = ctx.prompt as string; // orchestrator validated non-empty content
+
+  // Remember what this session ran on, so the next turn — and the picker when the session is
+  // reopened — resolve to it instead of falling back to a default. `sid` is only final here:
+  // preflight sees a sessionId on resume, but a session being CREATED (delegation) gets its
+  // id from the runId the orchestrator settles just above.
+  void recordSessionModel(config.engine, cwd, sid, model);
 
   // Bridge the builtinAgent/* helpers' SSE-string contract to ctx.emit (objects).
   const emit = (data: string) => {

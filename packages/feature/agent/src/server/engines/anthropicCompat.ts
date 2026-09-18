@@ -16,6 +16,7 @@ import { getSessionTitle } from '../state/globalState';
 import { runBuiltinAgent, requireTextPrompt, type BuiltinAgentConfig } from './builtinAgent';
 import { createOpenAiCompatModel } from './builtinAgent/model';
 import type { ApiKeyStore } from './credentials';
+import { readSessionModel } from './sessionModel';
 import type { DispatchParams, EngineSpec } from './types';
 
 /** Per-engine slice of settings.json. The API key is NOT here — see credentials.ts. */
@@ -101,15 +102,23 @@ export async function readEngineEndpoints(p: AnthropicCompatProvider): Promise<E
   return resolveEndpoints(p, settings.engines?.[p.name] ?? {}, settings.language);
 }
 
-/** The live model list is the whitelist and the picker already filtered against it — take
- *  the first non-empty candidate and let the API reject an unknown id with its own
- *  message. */
+/**
+ * The live model list is the whitelist and the picker already filtered against it — take the
+ * first non-empty candidate and let the API reject an unknown id with its own message.
+ *
+ * `session` sits above the global setting on purpose: a session started on one model keeps
+ * running on it, whoever started it. Without that rung a follow-up turn sent to a delegated
+ * session with no explicit `model` silently switched it to whatever the picker happened to
+ * hold — the same defect ollama had, one layer up.
+ */
 function resolveModel(
   requested: string | undefined,
+  session: string | undefined,
   saved: string | undefined,
   fallback: string,
 ): string {
   if (typeof requested === 'string' && requested.trim()) return requested.trim();
+  if (session && session.trim()) return session.trim();
   if (saved && saved.trim()) return saved.trim();
   return fallback;
 }
@@ -120,6 +129,7 @@ function buildConfig(
   endpoints: EngineEndpoints,
 ): BuiltinAgentConfig {
   return {
+    engine: p.name,
     sessionsRoot: getBuiltinSessionsRoot(p.name),
     defaultModel: p.defaultModel,
     createModel: async (modelName) =>
@@ -149,6 +159,7 @@ export function makeAnthropicCompatSpec(p: AnthropicCompatProvider): EngineSpec 
       if (!textCheck.ok) return textCheck;
       params.model = resolveModel(
         typeof params.model === 'string' ? params.model : undefined,
+        await readSessionModel(p.name, params.cwd, params.sessionId),
         saved.builtinModel,
         p.defaultModel,
       );

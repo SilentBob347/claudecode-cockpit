@@ -364,7 +364,10 @@ export interface OllamaModelsResponse {
 /** Discriminated result: Ollama process not running (503) / not installed (404) / other failure each gets its own branch. */
 export type OllamaModelsResult =
   | { _tag: "ok"; models: ReadonlyArray<{ name: string; size?: number }> }
-  | { _tag: "not-running" } // needs to be started first
+  // Needs to be started first. `reason` is the server's own sentence (which URL, what went
+  // wrong); it is carried through the auto-start attempt so that if starting doesn't help,
+  // the picker can say why instead of a generic "cannot fetch models".
+  | { _tag: "not-running"; reason?: string }
   | { _tag: "not-installed"; message: string }
   | { _tag: "error"; message: string }
 
@@ -375,9 +378,9 @@ const fetchOllamaModelsRaw = (): Effect.Effect<
   Effect.tryPromise({
     try: async (): Promise<OllamaModelsResult> => {
       const res = await fetch("/api/ollama/models")
-      if (res.status === 503) return { _tag: "not-running" }
-      if (!res.ok) return { _tag: "error", message: "Failed to fetch models" }
-      const data = (await res.json()) as OllamaModelsResponse
+      const data = (await res.json().catch(() => ({}))) as OllamaModelsResponse
+      if (res.status === 503) return { _tag: "not-running", ...(data.error && { reason: data.error }) }
+      if (!res.ok) return { _tag: "error", message: data.error || "Failed to fetch models" }
       return { _tag: "ok", models: data.models ?? [] }
     },
     catch: (cause) =>
@@ -431,7 +434,10 @@ export const loadOllamaModelsWithAutoStart = (
     // Started → re-fetch
     const second = yield* fetchOllamaModelsRaw()
     if (second._tag === "not-running") {
-      return { _tag: "error" as const, message: "Ollama started but cannot fetch models" }
+      return {
+        _tag: "error" as const,
+        message: second.reason ?? first.reason ?? "Ollama started but cannot fetch models",
+      }
     }
     return second
   })

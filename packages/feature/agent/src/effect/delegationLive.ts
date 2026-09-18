@@ -37,6 +37,7 @@ import {
 } from "@cockpit/effect-services"
 import { buildSessionLink } from "@cockpit/shared-utils/sessionLink"
 import { dispatchChat } from "../server/engines/orchestrator"
+import type { DispatchParams } from "../server/engines/types"
 import { getEngineSpec } from "../server/engines/registry"
 import {
   addRunListener,
@@ -405,6 +406,20 @@ export const DelegationServiceLive = Layer.effect(
         const parent = yield* resolveParent(parentRunId)
         const presetId = randomUUID()
 
+        // dispatchChat's preflight settles `model` in place — an engine may complete a bare
+        // ollama name to its installed tag, or pick one when the request named none. Keep the
+        // object so the receipt reports the model the session ACTUALLY runs on: the receipt is
+        // the only record of this delegation, and one naming a model that never ran is how the
+        // caller ends up resending to the wrong one.
+        const dispatchParams: DispatchParams = {
+          prompt: buildChildPrompt(request, parent),
+          cwd: request.cwd,
+          engine: request.engine,
+          runId: presetId,
+          ...(request.engine === "claude" && { newSessionId: presetId }),
+          ...(request.model && { model: request.model }),
+        }
+
         // The slot is held until the run is registered (or dispatch fails), so two
         // concurrent requests can never both pass the cap while one is still dispatching.
         const runKey = yield* Effect.acquireUseRelease(
@@ -412,15 +427,7 @@ export const DelegationServiceLive = Layer.effect(
           () =>
             Effect.gen(function* () {
               const outcome = yield* Effect.tryPromise({
-                try: () =>
-                  dispatchChat(spec, {
-                    prompt: buildChildPrompt(request, parent),
-                    cwd: request.cwd,
-                    engine: request.engine,
-                    runId: presetId,
-                    ...(request.engine === "claude" && { newSessionId: presetId }),
-                    ...(request.model && { model: request.model }),
-                  }),
+                try: () => dispatchChat(spec, dispatchParams),
                 catch: (cause) => new AgentError({ provider: request.engine, kind: "unknown", cause }),
               })
               if (!outcome.ok) return yield* Effect.fail(invalid("engine", outcome.error))
@@ -438,10 +445,11 @@ export const DelegationServiceLive = Layer.effect(
               )
             : presetId
 
+        const model = dispatchParams.model ?? request.model
         return {
           cwd: request.cwd,
           engine: request.engine,
-          ...(request.model && { model: request.model }),
+          ...(model && { model }),
           sessionId,
           link: buildSessionLink(request.cwd, sessionId),
           title: request.title,
