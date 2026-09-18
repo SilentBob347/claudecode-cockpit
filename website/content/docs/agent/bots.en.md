@@ -34,6 +34,19 @@ Register it in either place:
 Removing a Bot from the panel only removes its registry entry. Its directory and memory stay on
 disk.
 
+## Built-in Bots
+
+Cockpit ships with Bots of its own — `@cockpit-helper` answers questions about OpenCockpit by
+reading this site live. They appear in the **Bots** panel with a *Built-in* chip and no delete
+button, and they are ready before you create anything.
+
+A built-in is installed into `~/.cockpit/bots/<name>/` the first time Cockpit lists its Bots, and
+that copy is the Bot: it is what the panel shows, what the folder button opens, and what `@name`
+runs. It is yours to edit. Cockpit keeps the files it installed up to date per file, so a shipped
+file you have not touched picks up improvements with each upgrade, while a file you have edited —
+or anything the Bot wrote itself — is never overwritten. Delete the folder to go back to the
+version that ships: the next listing installs it afresh.
+
 ## Tag a Bot into a task
 
 Start a line with its registered name:
@@ -43,9 +56,12 @@ Start a line with its registered name:
 ```
 
 OpenCockpit marks this as a Bot turn. The current agent writes a self-contained brief, starts a
-separate session in the current project, and waits for its result. The Bot session reads the shared
-Bot contract, then its own `BOT.md` and only the context files relevant to the task. The result in
-the current chat includes a link to the full child session.
+separate session, and waits for its result. The Bot session reads the shared Bot contract, then its
+own `BOT.md` and only the context files relevant to the task. The result in the current chat
+includes a link to the full child session.
+
+Ordinary work runs in the current project. The three housekeeping requests below — review, attach,
+share — run in the Bot's own directory instead, because that directory is what they act on.
 
 Several Bots can be tagged in one message. Their sessions are started before waiting, so independent
 work can run in parallel:
@@ -89,6 +105,11 @@ This adds one row to the Bot's Skills table. It does not copy the Skill, registe
 command, install software, or duplicate credentials. The Bot opens that `SKILL.md` only when a task
 matches its stated use.
 
+The row records the Skill's **registered name**, not the path you typed — a name still means
+something on another machine, which is what lets a shared Bot arrive with its tools intact. A Skill
+that is not registered is recorded by absolute path instead, and the Bot says so: that row will
+only work here.
+
 ## Review a Bot
 
 Long-lived context gets stale. Ask the Bot to review itself:
@@ -107,6 +128,29 @@ Continue in the Bot session, or resume from any chat:
 ```text
 @product apply .reviews/2026-09-18-143012.md rows 1 3
 ```
+
+## Share a Bot
+
+A Bot's working directory is the wrong thing to hand over. It holds this user's memory, its open
+commitments, the reports its reviews wrote, and paths that exist on one machine. Ask the Bot for a
+shareable copy instead:
+
+```text
+@product export to ~/code/product-bot-template
+```
+
+It builds a **new** Bot directory at that path: the `BOT.md`, its identity files and its own Skills
+come across; its memory, relationships, commitments, evidence and project notes are recreated as
+empty files. The source Bot is not changed. Anything the Bot has grown that the export does not recognise stays
+behind by default and is listed in the report, so you can name the parts worth carrying over —
+usually a procedure general enough to be useful to someone else.
+
+The report ends with the Skill names the exported table references. That list is the whole
+installation requirement: whoever receives the directory registers a Skill under each of those
+names, adds the Bot, and it works. Where they keep those Skills is their business.
+
+What to do with the directory is yours — a repository of your own is the usual answer. Cockpit does
+not publish it, and does not register the copy here either.
 
 ## What a Bot does not do
 
