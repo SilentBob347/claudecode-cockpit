@@ -70,15 +70,17 @@ describe('resolveCommandPrompt', () => {
   // missing rule, and nothing else in the system would notice.
   it('copies a builtin\'s reference files next to its resolved SKILL.md, substituted', () => {
     resolveCommandPrompt('@product hi');
-    const dir = path.join(cockpitHome, 'skills', 'bot-turn');
-    const read = (file: string) => fs.readFileSync(path.join(dir, file), 'utf-8');
+    const read = (file: string) =>
+      fs.readFileSync(path.join(cockpitHome, 'skills', 'bot-turn', file), 'utf-8');
     for (const file of ['writing.md', 'review.md', 'attach.md']) {
       expect(read(file)).not.toContain('{{');
     }
     // One positive check per placeholder kind — `not.toContain('{{')` alone
-    // passes on a file that never had one.
+    // passes on a file that never had one. Match on the substituted value only:
+    // the skills write `{{COCKPIT_DIR}}/skills/...` with forward slashes, so the
+    // full path is mixed-separator on Windows and never equals path.join().
     expect(read('writing.md')).toContain('http://localhost:'); // {{BASE_URL}}
-    expect(read('review.md')).toContain(dir); // {{COCKPIT_DIR}}
+    expect(read('review.md')).toContain(cockpitHome); // {{COCKPIT_DIR}}
   });
 
   // The silent branch: when ~/.cockpit/skills is unwritable, bot-run has no

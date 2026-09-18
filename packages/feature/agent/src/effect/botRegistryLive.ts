@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { readFileSync } from "node:fs"
-import { realpath } from "node:fs/promises"
+import { readFileSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { Effect, Layer } from "effect"
 import { FSError, NotFoundError, ValidationError, type CockpitError } from "@cockpit/effect-core"
@@ -77,8 +76,14 @@ const addBot = (inputPath: string): Effect.Effect<AddBotResult, CockpitError> =>
     if (!path.isAbsolute(trimmed)) return yield* Effect.fail(invalidPath("must be absolute"))
 
     const requested = botPaths(path, trimmed).dir
-    const dir = yield* Effect.tryPromise({
-      try: () => realpath(requested),
+    // realpathSync.NATIVE, matching builtinBots — the two spellings are compared
+    // against each other, so they must come from the same implementation. Node's
+    // JS realpath and the native binding disagree on Windows 8.3 short names
+    // (`C:\Users\RUNNER~1\…` vs `C:\Users\runneradmin\…`), which made a
+    // built-in's own directory look like a new Bot and let the same folder be
+    // registered twice.
+    const dir = yield* Effect.try({
+      try: () => realpathSync.native(requested),
       catch: (cause) => fsReason("directory", requested, cause),
     })
     // Registering a built-in would write a bot.json row that `list` then drops,

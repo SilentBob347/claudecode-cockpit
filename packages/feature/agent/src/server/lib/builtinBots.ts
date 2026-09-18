@@ -100,7 +100,9 @@ export function listBuiltinBots(): BotSummary[] {
 
 const realpathOr = (target: string): string => {
   try {
-    return realpathSync(target);
+    // .native so this agrees with botRegistryLive, which canonicalizes the
+    // same way; the JS and native implementations differ on Windows.
+    return realpathSync.native(target);
   } catch {
     return target;
   }

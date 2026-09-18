@@ -6,7 +6,10 @@ import os from "node:os"
 import path from "node:path"
 import { Effect, Exit } from "effect"
 
-const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "bot-registry-")))
+// .native to match botRegistryLive; on Windows the JS realpath keeps 8.3 short
+// names (C:\\Users\\RUNNER~1\\…) and the native one expands them, so a fixture
+// path built with the wrong one never equals what the registry stores.
+const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "bot-registry-")))
 process.env.COCKPIT_HOME = path.join(root, "cockpit")
 // Pins the built-in Bot scan to this temp tree: COCKPIT_ROOT is otherwise the
 // checkout (or, for a Cockpit-spawned agent, the installed package), which would
@@ -48,9 +51,14 @@ describe("BotRegistryServiceLive", () => {
   it("registers by BOT.md path, then reports the directory as already added", async () => {
     const dir = makeBot("arc", "---\nname: arc\ndescription: Decisions\n---\n")
     const first = await run((r) => r.add(path.join(dir, "BOT.md")))
-    expect(first).toMatchObject({ _tag: "Success", value: { path: dir, name: "arc", valid: true, alreadyExists: false } })
+    expect(first).toMatchObject({ _tag: "Success", value: { name: "arc", valid: true, alreadyExists: false } })
+    // The stored path is whatever realpath canonicalizes to; what matters is that
+    // all three spellings land on the SAME entry, so assert against that, not
+    // against the fixture path.
+    const stored = Exit.isSuccess(first) ? (first.value as { path: string }).path : ""
+    expect(stored).toBeTruthy()
     const again = await run((r) => r.add(`${dir}/`))
-    expect(again).toMatchObject({ _tag: "Success", value: { path: dir, alreadyExists: true } })
+    expect(again).toMatchObject({ _tag: "Success", value: { path: stored, alreadyExists: true } })
   })
 
   it("rejects relative paths, missing directories, missing BOT.md and name clashes", async () => {
@@ -58,16 +66,20 @@ describe("BotRegistryServiceLive", () => {
     expect(failure(await run((r) => r.add(path.join(root, "nope"))))?.reason).toContain("directory not found")
     // An unreadable directory is not a missing one — the errno has to survive,
     // or the user hunts for a folder that is sitting right there.
-    const sealed = path.join(root, "sealed")
-    fs.mkdirSync(sealed, { recursive: true })
-    fs.writeFileSync(path.join(sealed, "BOT.md"), "---\nname: sealed\n---\n")
-    fs.chmodSync(path.join(sealed, "BOT.md"), 0o000)
-    try {
-      const reason = failure(await run((r) => r.add(sealed)))?.reason ?? ""
-      expect(reason).toContain("EACCES")
-      expect(reason).not.toContain("not found")
-    } finally {
-      fs.chmodSync(path.join(sealed, "BOT.md"), 0o644)
+    // chmod 0o000 blocks nothing for root, and on Windows only toggles the
+    // read-only bit — the read still succeeds and there is no errno to check.
+    if (process.getuid?.() !== 0 && process.platform !== "win32") {
+      const sealed = path.join(root, "sealed")
+      fs.mkdirSync(sealed, { recursive: true })
+      fs.writeFileSync(path.join(sealed, "BOT.md"), "---\nname: sealed\n---\n")
+      fs.chmodSync(path.join(sealed, "BOT.md"), 0o000)
+      try {
+        const reason = failure(await run((r) => r.add(sealed)))?.reason ?? ""
+        expect(reason).toContain("EACCES")
+        expect(reason).not.toContain("not found")
+      } finally {
+        fs.chmodSync(path.join(sealed, "BOT.md"), 0o644)
+      }
     }
     fs.mkdirSync(path.join(root, "empty"))
     expect(failure(await run((r) => r.add(path.join(root, "empty"))))?.reason).toContain("BOT.md not found")
@@ -79,15 +91,16 @@ describe("BotRegistryServiceLive", () => {
     const dir = makeBot("broken", "# no frontmatter\n")
     const added = await run((r) => r.add(dir))
     expect(added._tag).toBe("Success")
+    const stored = Exit.isSuccess(added) ? (added.value as { path: string }).path : ""
     fs.rmSync(path.join(dir, "BOT.md"))
 
     const listed = await run((r) => r.list)
-    const broken = Exit.isSuccess(listed) ? listed.value.find((bot) => bot.path === dir) : undefined
+    const broken = Exit.isSuccess(listed) ? listed.value.find((bot) => bot.path === stored) : undefined
     expect(broken).toMatchObject({ valid: false, name: "broken" })
 
     await run((r) => r.remove(broken!.id))
     const after = await run((r) => r.list)
-    expect(Exit.isSuccess(after) && after.value.some((bot) => bot.path === dir)).toBe(false)
+    expect(Exit.isSuccess(after) && after.value.some((bot) => bot.path === stored)).toBe(false)
     expect(fs.existsSync(dir)).toBe(true)
     expect(failure(await run((r) => r.remove(broken!.id)))).toMatchObject({ _tag: "NotFoundError" })
   })
