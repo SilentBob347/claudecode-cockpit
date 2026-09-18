@@ -83,6 +83,21 @@ describe('resolveCommandPrompt', () => {
     expect(read('review.md')).toContain(cockpitHome); // {{COCKPIT_DIR}}
   });
 
+  // The Skills table names a registered skill rather than pointing at a file, so
+  // a Bot survives being handed to someone else. That only works if the session
+  // can turn a name back into a path, which it does over the local API — so the
+  // recipe must reach it with {{BASE_URL}} already substituted, in every file
+  // that carries it.
+  it('substitutes the skill-registry lookup recipe in every file that uses it', () => {
+    resolveCommandPrompt('@product hi');
+    const read = (file: string) =>
+      fs.readFileSync(path.join(cockpitHome, 'skills', 'bot-turn', file), 'utf-8');
+    for (const file of ['SKILL.md', 'attach.md', 'review.md']) {
+      expect(read(file)).toContain('http://localhost:');
+      expect(read(file)).toContain('/api/skills');
+    }
+  });
+
   // The silent branch: when ~/.cockpit/skills is unwritable, bot-run has no
   // path to list. Dropping it would ship `[subagent·@product]` plus a BOT.md
   // the dispatcher is told NOT to open, and no way to delegate — a guaranteed

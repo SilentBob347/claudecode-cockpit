@@ -106,7 +106,7 @@ Read, relative to this file's directory:
 - relationships/user.md and commitments/active.md — always
 - memory/facts.md and memory/procedures.md — when relevant to the task
 - projects/<project-name>/CONTEXT.md — when the task concerns that project
-- the Skills table below — always; open a listed SKILL.md only when the task matches its row
+- the Skills table below — always; resolve and open a row's SKILL.md only when the task matches it
 
 Reading rules, entry format, when writing is allowed, the write lock and the reporting rules are
 the same for every Bot: they are in the `bot-turn` skill you were handed with this file. If you do
@@ -114,9 +114,9 @@ not have it, say so rather than inventing a protocol — especially the write lo
 
 ## Skills
 
-| Skill | When to use | File |
+| Skill | When to use | Where |
 |---|---|---|
-| <name> | <the kind of task it applies to> | <absolute path to SKILL.md> |
+| <name> | <the kind of task it applies to> | <the registered skill's name, or a path relative to this directory for one of this Bot's own> |
 
 ## Updating
 

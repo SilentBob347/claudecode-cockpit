@@ -21,7 +21,7 @@ which are skipped unopened — then check eleven things:
 | Unsourced | An entry with no `source`, or a `source` pointing at nothing in `evidence/refs.md` |
 | Duplicate | The same information written in two files |
 | Placeholder | A scaffolded file still holding only its heading and comment |
-| Broken skill | A row in the Skills table whose file no longer exists |
+| Broken skill | A row in the Skills table that no longer resolves: a name absent from `curl -s {{BASE_URL}}/api/skills`, a relative path missing from this Bot, or an absolute path that is gone. A name absent on *this* machine is a missing install, not a broken Bot — say which |
 | Orphaned | An `active` conclusion whose basis was superseded or disputed — judge it by reading, no field records this |
 | Oversized | The directory outgrew its read rules — see "Growing up" below |
 | Frozen machinery | `BOT.md` restates something that now lives in the `bot-turn` skill — the write lock, the entry format, the non-recording list, the reading or reporting rules. Its copy can no longer be improved; propose replacing it with the per-Bot content only |
