@@ -12,6 +12,9 @@ export interface BotRegistration {
  * Built-in Bots ship inside the package and are merged into the listing at read
  * time, so they carry no bot.json record: `id` is `builtin:<dir>`, `addedAt` is
  * empty, and they can be neither added nor removed. Absent on registered Bots.
+ *
+ * `path` is the user's copy under ~/.cockpit/bots, which `list` installs from
+ * the shipped seed on first sight — not the install root the seed lives in.
  */
 export interface BotOrigin {
   readonly builtin?: boolean

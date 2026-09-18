@@ -6,7 +6,13 @@ import { FSError, NotFoundError, ValidationError, type CockpitError } from "@coc
 import { BotRegistryService, type AddBotResult, type BotRegistration, type BotSummary } from "@cockpit/effect-services"
 import { BOTS_FILE, readJsonFileForUpdate, withFileLock, writeJsonFile } from "@cockpit/shared-utils"
 import { botPaths, findNameClash, parseBotDocument, resolveBot } from "../shared/bots"
-import { findBuiltinBotByPath, isBuiltinBotId, listBuiltinBots } from "../server/lib/builtinBots"
+import {
+  builtinBotNameFromId,
+  builtinBotSeedDir,
+  findBuiltinBotByPath,
+  isBuiltinBotId,
+  listBuiltinBots,
+} from "../server/lib/builtinBots"
 
 interface BotRegistryFile {
   readonly bots: ReadonlyArray<BotRegistration>
@@ -52,10 +58,17 @@ const fsReason = (what: string, target: string, cause: unknown): ValidationError
  * rows for one directory would render two cards and — since the earliest
  * registration wins at dispatch — hand the `@name` to whichever was added
  * first. Let the built-in win, exactly as html.json's dedupe does.
+ *
+ * Both of a built-in's directories are matched. A row added by hand before this
+ * feature points at the shipped seed, which stops being `bot.path` the moment
+ * the Bot is copied out — matching only the live path would let that old row
+ * reappear as a second card the first time the user opens the built-in.
  */
 const mergeBuiltins = (registered: ReadonlyArray<BotSummary>): BotSummary[] => {
   const builtins = listBuiltinBots()
-  const builtinPaths = new Set(builtins.map((bot) => bot.path))
+  const builtinPaths = new Set(
+    builtins.flatMap((bot) => [bot.path, builtinBotSeedDir(builtinBotNameFromId(bot.id))]),
+  )
   return [...builtins, ...registered.filter((bot) => !builtinPaths.has(bot.path))]
 }
 

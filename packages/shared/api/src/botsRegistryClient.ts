@@ -19,8 +19,11 @@ interface BotBase {
   readonly name: string
   /**
    * Shipped under /bots and merged in at read time — not stored in bot.json, so
-   * it cannot be removed, and it is read-only (see builtinBots.ts). Absent on
-   * registered Bots.
+   * it cannot be removed. Absent on registered Bots.
+   *
+   * `path` is NOT the install root: a built-in is installed into
+   * ~/.cockpit/bots/<name> on first listing and `path` is that copy, so it can
+   * be opened and edited like any other Bot (see builtinBots.ts).
    */
   readonly builtin?: boolean
 }

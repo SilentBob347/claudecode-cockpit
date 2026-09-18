@@ -15,7 +15,11 @@ process.env.COCKPIT_HOME = path.join(root, "cockpit")
 // checkout (or, for a Cockpit-spawned agent, the installed package), which would
 // mix the real shipped Bots into every assertion here.
 process.env.COCKPIT_ROOT = root
-const BUILTIN_DIR = path.join(root, "bots", "site")
+// A built-in has two directories: the shipped seed under the install root, and
+// the copy installed into the user's Bot folder on first listing, which is the
+// one it actually runs from.
+const BUILTIN_SEED = path.join(root, "bots", "site")
+const BUILTIN_HOME = path.join(root, "cockpit", "bots", "site")
 
 type Services = typeof import("@cockpit/effect-services")
 let services: Services
@@ -130,22 +134,25 @@ describe("BotRegistryServiceLive", () => {
 
   // ── Built-in Bots (shipped under <install root>/bots, never in bot.json) ──
 
-  it("lists built-ins first, as unremovable virtual entries", async () => {
-    fs.mkdirSync(BUILTIN_DIR, { recursive: true })
-    fs.writeFileSync(path.join(BUILTIN_DIR, "BOT.md"), "---\nname: site\ndescription: Reads the website\n---\n")
+  it("lists built-ins first, installed under COCKPIT_HOME, as unremovable virtual entries", async () => {
+    fs.mkdirSync(BUILTIN_SEED, { recursive: true })
+    fs.writeFileSync(path.join(BUILTIN_SEED, "BOT.md"), "---\nname: site\ndescription: Reads the website\n---\n")
 
     const listed = await run((r) => r.list)
     expect(Exit.isSuccess(listed)).toBe(true)
     const bots = Exit.isSuccess(listed) ? listed.value : []
     expect(bots[0]).toMatchObject({
       id: "builtin:site",
-      path: BUILTIN_DIR,
+      // The user's copy, not the install root the seed sits in: this path is
+      // what the panel prints and what the folder button opens.
+      path: BUILTIN_HOME,
       name: "site",
       description: "Reads the website",
       valid: true,
       builtin: true,
       addedAt: "",
     })
+    expect(fs.existsSync(path.join(BUILTIN_HOME, "BOT.md"))).toBe(true)
     // Registered Bots carry no `builtin` key at all, so the panel's chip and its
     // hidden delete button key off one thing.
     expect(bots.filter((bot) => bot.id !== "builtin:site").every((bot) => bot.builtin === undefined)).toBe(true)
@@ -156,11 +163,15 @@ describe("BotRegistryServiceLive", () => {
     })
   })
 
-  it("reports a built-in's own path as already present instead of writing a row", async () => {
+  it("reports either of a built-in's paths as already present instead of writing a row", async () => {
     const registryFile = path.join(root, "cockpit", "bot.json")
     const before = fs.readFileSync(registryFile, "utf-8")
-    const exit = await run((r) => r.add(BUILTIN_DIR))
-    expect(exit).toMatchObject({ _tag: "Success", value: { id: "builtin:site", builtin: true, alreadyExists: true } })
+    // Both are paths a user can paste into "Add bot" — the one the panel shows,
+    // and the seed they may have found by browsing the install.
+    for (const dir of [BUILTIN_HOME, BUILTIN_SEED]) {
+      const exit = await run((r) => r.add(dir))
+      expect(exit).toMatchObject({ _tag: "Success", value: { id: "builtin:site", builtin: true, alreadyExists: true } })
+    }
     // The row would be filtered out of every later list and would outlive the
     // install it points into, so it must never reach the file.
     expect(fs.readFileSync(registryFile, "utf-8")).toBe(before)
@@ -172,12 +183,18 @@ describe("BotRegistryServiceLive", () => {
     fs.writeFileSync(
       registryFile,
       JSON.stringify({
-        bots: [...before.bots, { id: "bot-manual", path: BUILTIN_DIR, addedAt: new Date().toISOString() }],
+        // Pointing at the SEED: rows like this were written by hand back when a
+        // built-in could only be reached by adding its shipped path, and they
+        // are still on disk. Matching only the installed path would let them
+        // resurface as a second card the moment the built-in moved.
+        bots: [...before.bots, { id: "bot-manual", path: BUILTIN_SEED, addedAt: new Date().toISOString() }],
       }),
     )
 
     const listed = await run((r) => r.list)
-    const rows = Exit.isSuccess(listed) ? listed.value.filter((bot) => bot.path === BUILTIN_DIR) : []
+    const rows = Exit.isSuccess(listed)
+      ? listed.value.filter((bot) => bot.path === BUILTIN_SEED || bot.path === BUILTIN_HOME)
+      : []
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe("builtin:site")
 

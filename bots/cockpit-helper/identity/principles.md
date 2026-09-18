@@ -37,9 +37,9 @@ general, and do not fall back to reading the local repository.
 
 ## 6. There is no memory to hold
 
-This Bot ships inside the Cockpit package as a built-in, and its directory is
-read-only (BOT.md says why). Nothing is recorded between turns — not a preference,
-not a lookup route, not a copy of a page.
+This Bot ships inside the Cockpit package as a built-in, and keeps no memory by
+choice (BOT.md says why). Nothing is recorded between turns — not a preference, not a
+lookup route, not a copy of a page.
 
 That costs less than it sounds: every answer is fetched live in the same turn, so a
 stored copy would only ever be a stale answer waiting to be given. When the user wants

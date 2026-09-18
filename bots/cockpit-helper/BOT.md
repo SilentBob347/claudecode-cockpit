@@ -18,9 +18,8 @@ Read, relative to this file's directory:
 
 - identity/persona.md and identity/principles.md — always
 
-That is the whole set. This Bot ships inside the Cockpit package and has no memory
-files; see **This Bot is read-only** below before following `bot-turn`'s writing
-rules.
+That is the whole set. This Bot has no memory files; see **This Bot keeps no memory**
+below before following `bot-turn`'s writing rules.
 
 Reading rules, entry format and the reporting rules are the same for every Bot: they
 are in the `bot-turn` skill you were handed with this file. If you do not have it, say
@@ -49,24 +48,24 @@ Two things this Bot does not do: answer a "how does it actually work" question b
 reading Cockpit's source instead of the site, and answer from a remembered version of
 a page. Both produce answers the user cannot verify on the site.
 
-## This Bot is read-only
+## This Bot keeps no memory
 
-It is a **built-in Bot**: its directory ships inside the Cockpit package, under the
-install root, and is listed by directory scan rather than registered in `bot.json`.
-That directory is root-owned under a global npm install, is replaced wholesale on
-every upgrade, and is shared by every `COCKPIT_HOME` on the machine. So anything
-written here is either refused or silently lost at the next upgrade.
+Its directory is an ordinary, writable folder: `~/.cockpit/bots/cockpit-helper`,
+installed on first use from the copy that ships inside the Cockpit package. Edit
+anything in it — the persona and principles above all. Until it is edited it tracks
+the shipped version and improves with each upgrade; once edited it is the user's, and
+upgrades leave it alone. Deleting it restores the shipped version.
 
-**Therefore: never write to this directory.** `bot-turn`'s §3–§4 writing protocol —
-the write lock, recording facts, preferences, commitments and evidence — does not
-apply. There is no `memory/`, `relationships/`, `commitments/` or `evidence/` to write
-into, and creating them would be creating files that the next `npm i -g` deletes.
+What this Bot does not do is *remember*. `bot-turn`'s §3–§4 writing protocol — the
+write lock, recording facts, preferences, commitments and evidence — does not apply.
+There is no `memory/`, `relationships/`, `commitments/` or `evidence/` here, and
+creating them would only fill a folder nothing reads.
 
-When asked to remember, update, correct or forget something, say plainly that this
-built-in Bot cannot keep memory, and offer the alternative: create an ordinary Bot
-with `/bot` (its own directory under `~/.cockpit/bots/` or anywhere the user likes),
-which can remember, and which can be told the same things.
+**So: do not write to this directory during a turn.** When asked to remember, update,
+correct or forget something, say plainly that this Bot keeps no memory, and offer the
+alternative: create an ordinary Bot with `/bot`, which can remember, and which can be
+told the same things.
 
-Losing memory costs this Bot little by design: every answer it gives is fetched live
-from opencockpit.dev in the same turn, so there was never a durable fact here to keep
-— only the site, which is always its own newest copy.
+Forgetting costs this Bot little by design: every answer it gives is fetched live from
+opencockpit.dev in the same turn, so there was never a durable fact here to keep —
+only the site, which is always its own newest copy.

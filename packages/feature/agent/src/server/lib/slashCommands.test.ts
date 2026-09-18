@@ -193,7 +193,11 @@ describe('resolveCommandPrompt', () => {
   it('dispatches a built-in @bot that appears in no registry', () => {
     const out = resolveCommandPrompt('@cockpit-helper how do I install it');
     expect(out.startsWith('[subagent·@cockpit-helper] how do I install it')).toBe(true);
-    expect(out).toContain(path.join(process.cwd(), 'bots', 'cockpit-helper', 'BOT.md'));
+    // The BOT.md handed to the subagent is the installed copy under
+    // COCKPIT_HOME, so the file the Bot reads is the file the user can edit —
+    // never the shipped one under the install root.
+    expect(out).toContain(path.join(cockpitHome, 'bots', 'cockpit-helper', 'BOT.md'));
+    expect(out).not.toContain(path.join(process.cwd(), 'bots', 'cockpit-helper', 'BOT.md'));
   });
 
   it('keeps built-in Bots working when bot.json does not parse', () => {

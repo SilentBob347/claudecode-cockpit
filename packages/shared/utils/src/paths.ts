@@ -26,6 +26,10 @@ export const SCHEDULED_TASKS_FILE = join(COCKPIT_DIR, 'scheduled-tasks.json');
 export const SETTINGS_FILE = join(COCKPIT_DIR, 'settings.json');
 export const SKILLS_FILE = join(COCKPIT_DIR, 'skills.json');
 export const BOTS_FILE = join(COCKPIT_DIR, 'bot.json');
+// Where Bots live under the user's data dir. `/bot` creates new ones here, and
+// it is also where a built-in is copied to the first time the user opens it
+// (see BUILTIN_BOTS_SRC_DIR below). Per-COCKPIT_HOME and user-owned, which is
+// exactly what the install root is not.
 export const BOTS_DIR = join(COCKPIT_DIR, 'bots');
 export const CODEX_SESSION_INDEX_FILE = join(COCKPIT_DIR, 'codex-session-index.json');
 // Global registry of HTML "mini-app" file paths, launched as console browser
@@ -51,12 +55,12 @@ export const BUILTIN_SKILLS_SRC_DIR = join(process.env.COCKPIT_ROOT || process.c
 // Built-in Bots shipped inside the package (/bots/<name>/BOT.md). Same
 // install-root resolution as APPS_DIR, and never persisted into bot.json.
 //
-// Unlike a builtin skill, NOTHING is ever copied out of here into COCKPIT_DIR:
-// a Bot's directory is the thing a Bot writes to, and this one lives in the
-// install root — root-owned under `npm i -g`, replaced wholesale on upgrade,
-// and shared by every COCKPIT_HOME. A builtin Bot is therefore read-only, and
-// says so in its own BOT.md. A Bot that must remember belongs in ~/.cockpit or
-// the user's own directory, registered in bot.json like any other.
+// SRC is the operative word: this is the *seed*, not the directory a built-in
+// runs from. The install root is root-owned under `npm i -g`, replaced wholesale
+// on upgrade, and shared by every COCKPIT_HOME — so a Bot living here could
+// neither be edited nor remember anything. The first time the user opens one it
+// is copied into BOTS_DIR/<name>, and from then on that copy is the Bot (see
+// builtinBots.ts). Nothing is ever written back here.
 export const BUILTIN_BOTS_SRC_DIR = join(process.env.COCKPIT_ROOT || process.cwd(), 'bots');
 
 /**
