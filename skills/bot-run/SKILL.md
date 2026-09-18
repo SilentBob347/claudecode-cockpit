@@ -47,7 +47,7 @@ EOF_BRIEF
 curl -sS --fail-with-body -X POST "{{BASE_URL}}/api/sessions/delegate" \
   -H "Content-Type: application/json" -H "x-cockpit-run-id: $COCKPIT_RUN_ID" \
   --data-binary @- <<EOF_JSON
-{"cwd": "<this project's cwd>", "title": "@<name>: <short label>", "briefPath": "$BRIEF"}
+{"cwd": "${COCKPIT_CWD:-$PWD}", "title": "@<name>: <short label>", "briefPath": "$BRIEF"}
 EOF_JSON
 ```
 
@@ -56,8 +56,28 @@ The body is `{ cwd, engine?, model?, title?, prompt? | briefPath? }`:
 - **Do not delete the brief file.** The POST returns before the child has read it: the endpoint
   only checks that the file exists, and the child is handed the *path*. Tidying up `$BRIEF` after
   the call leaves it with a task it cannot read.
-- `cwd` is **this** project, not the Bot directory — the Bot reaches its own files by absolute
-  path, and the work usually needs the project. It must be an existing directory.
+- **`cwd` has two right answers, decided by what the line asks for:**
+
+  | The `@name` line is | `cwd` |
+  |---|---|
+  | ordinary work | `${COCKPIT_CWD:-$PWD}` — exactly as written above, a variable you never resolve yourself |
+  | "导出 / export", "复盘 / review", "装上 / attach" | the Bot's own directory: `dirname` of the BOT.md path listed at the end of the message |
+
+  Ordinary work happens in the project, and the Bot reaches its own files by absolute path. The
+  three maintenance verbs are work *on the Bot*: its files are the subject, its `.locks/` is
+  there, and a review writes `.reviews/` into it — a child sitting in some unrelated project would
+  reach all of that by absolute path for no reason, and `git` inside the Bot's own repository
+  would not work at all. Taking `dirname` of that path is not opening it; the rule against reading
+  it stands.
+
+  **`COCKPIT_CWD` is this session's own working directory, exported by Cockpit.** Leave it as a
+  variable in the JSON — the heredoc expands it. Never substitute a path you worked out instead:
+  not the git root, not the nearest directory with a CLAUDE.md, not any parent that looks more
+  like a project than where you are. Doing that silently moves the child one or more levels above
+  where the user is working, and its transcript then lands under a different project in the
+  session list — which is what happened when a session working inside a subdirectory delegated a
+  child at the repository root instead. It is also not `pwd`: `pwd` follows any `cd` this turn has
+  made, which is why the fallback is only there for a Cockpit too old to export the variable.
 - Leave `engine` and `model` unset. Bot manifests expose only `name` and `description`, and the
   dispatcher must not open `BOT.md` to invent an engine preference.
 - `title` is optional but always worth setting — it is how the session is listed later.

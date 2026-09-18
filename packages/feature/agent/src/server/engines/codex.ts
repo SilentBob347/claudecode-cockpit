@@ -744,8 +744,9 @@ async function runCodexAppServer(ctx: RunCtx): Promise<void> {
   let client: CodexAppServerClient;
   try {
     client = CodexAppServerClient.start({
-      // COCKPIT_RUN_ID lets a skill's curl identify the session it runs in (delegation parent).
-      env: sanitizedSpawnEnv({ COCKPIT_RUN_ID: ctx.currentKey() }),
+      // COCKPIT_RUN_ID lets a skill's curl identify the session it runs in (delegation parent);
+      // COCKPIT_CWD is the session's own working directory (see spawnEnv.ts).
+      env: sanitizedSpawnEnv({ COCKPIT_RUN_ID: ctx.currentKey(), COCKPIT_CWD: ctx.cwd || undefined }),
       ...(ctx.cwd ? { cwd: ctx.cwd } : {}),
       onNotification,
       // Permitted `console.error` under EFFECT.md §0 (subprocess IPC adapter gateway).

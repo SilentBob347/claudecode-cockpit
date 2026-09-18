@@ -145,8 +145,10 @@ function buildClaudeOptions(ctx: RunCtx, independent: boolean): BuildSdkOptions 
     abortController: abort,
     // env is ALWAYS passed: without it the SDK inherits process.env verbatim,
     // handing the agent this server's NODE_ENV=production. See sanitizedSpawnEnv.
-    // COCKPIT_RUN_ID lets a skill's curl identify the session it runs in (delegation parent).
-    env: sanitizedSpawnEnv({ COCKPIT_RUN_ID: ctx.currentKey() }),
+    // COCKPIT_RUN_ID lets a skill's curl identify the session it runs in (delegation parent);
+    // COCKPIT_CWD is the session's own working directory, which `pwd` stops being the moment
+    // the agent cd's somewhere (see spawnEnv.ts).
+    env: sanitizedSpawnEnv({ COCKPIT_RUN_ID: ctx.currentKey(), COCKPIT_CWD: ctx.cwd || undefined }),
   });
 }
 

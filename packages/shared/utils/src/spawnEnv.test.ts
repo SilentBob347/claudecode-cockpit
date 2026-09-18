@@ -27,6 +27,22 @@ describe('sanitizedSpawnEnv', () => {
     expect(sanitizedSpawnEnv({}, BASE).COCKPIT_PORT).toBe('43457');
   });
 
+  // COCKPIT_CWD is the session's own working directory, and skills use it wherever
+  // something has to identify the session — delegation, the Bot write-lock owner
+  // file, the status lookups keyed on cwd + sessionId. `pwd` cannot stand in: it
+  // follows a `cd`, and Claude Code resets the shell's cwd between commands.
+  it('carries the session identity a skill cannot work out for itself', () => {
+    const env = sanitizedSpawnEnv({ COCKPIT_RUN_ID: 'run-1', COCKPIT_CWD: '/work/project' }, BASE);
+    expect(env.COCKPIT_RUN_ID).toBe('run-1');
+    expect(env.COCKPIT_CWD).toBe('/work/project');
+  });
+
+  it('omits an unknown cwd instead of exporting an empty one', () => {
+    // Engines pass `ctx.cwd || undefined`: cwd is '' when unknown, and an exported
+    // empty string would make `${COCKPIT_CWD:-$PWD}` look answered when it is not.
+    expect('COCKPIT_CWD' in sanitizedSpawnEnv({ COCKPIT_CWD: undefined }, BASE)).toBe(false);
+  });
+
   it('deletes rather than blanks — an empty string is not good enough', () => {
     // NEXT_DEPLOYMENT_ID arrives as "" and would still read as "set" downstream.
     const env = sanitizedSpawnEnv({}, BASE);

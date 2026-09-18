@@ -58,13 +58,15 @@ that routing:
 Other sessions may be reading or writing this Bot at the same time. Reads never block. Hold the
 lock only around the edits, and release it even when an edit fails.
 
-**1. Acquire.** `mkdir` is atomic, so exactly one session wins. Do not `cd` into the Bot — the
-`cwd` recorded below must be the session's own working directory, which is what makes step 3
-answerable.
+**1. Acquire.** `mkdir` is atomic, so exactly one session wins. The `cwd` recorded below must be
+**this session's own working directory**, which Cockpit exports as `COCKPIT_CWD` — never a path
+you worked out, and never the Bot's own directory unless that is genuinely where the session
+started. Step 3 looks the owner up by that exact string; a wrong one answers "no such session",
+which reads as "the lock is stale" for a session that is very much alive.
 
 ```bash
 BOT='<the Bot directory>'
-SESSION_CWD="$PWD"
+SESSION_CWD="${COCKPIT_CWD:-$PWD}"   # this session's own cwd; `pwd` has moved if anything cd'd
 
 mkdir -p "$BOT/.locks"
 if mkdir "$BOT/.locks/write" 2>/dev/null; then

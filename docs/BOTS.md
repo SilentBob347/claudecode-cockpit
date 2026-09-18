@@ -26,8 +26,8 @@ Cockpit 不介入 Bot 目录的读写。Bot 目录就是普通文件夹，用户
 更新与加锁完全是 `bot-turn/writing.md` 中的约定，由 subagent 遵守，Cockpit 不参与（Cockpit 无法区分一次 subagent 调用是读还是写）。
 
 - **何时写**：只有任务明确要求 记住 / 更新 / 纠正 / 删除 时才修改 Bot 文件；否则只读，在汇报末尾列出 "Could be recorded" 供用户确认。读不加锁，多个会话并行读互不阻塞。
-- **写锁**：`mkdir <bot>/.locks/write` 是原子操作，只有一个会话能成功。`owner` 文件记四行——`run`（`$COCKPIT_RUN_ID`）、`cwd`（该会话的工作目录，**不是** Bot 目录）、`since`、`task`。拿不到锁时每 10 秒重试约 2 分钟。
-- **仍拿不到时按 `owner` 判定，绝不按时间抢占**：`run` 等于自己 → 是本会话上一轮崩溃留下的（会话跨轮次 run id 稳定），可安全清理；否则拿 `cwd` + `run` 去问 `GET /api/sessions/status`——`running` 表示有人正在干活，**不许清**，其他状态或 404 表示那个 run 已经结束。即便判定为死锁，清理也是用户的决定，模型只报告。按时间抢占会让两个会话同时写，而且旧持锁者释放时还会删掉新持锁者的锁。
+- **写锁**：`mkdir <bot>/.locks/write` 是原子操作，只有一个会话能成功。`owner` 文件记四行——`run`（`$COCKPIT_RUN_ID`）、`cwd`（**该会话自己的工作目录**，取 `$COCKPIT_CWD`，见 §2.1；不是 `pwd`，也不要改写成 Bot 目录）、`since`、`task`。拿不到锁时每 10 秒重试约 2 分钟。
+- **仍拿不到时按 `owner` 判定，绝不按时间抢占**：`run` 等于自己 → 是本会话上一轮崩溃留下的（会话跨轮次 run id 稳定），可安全清理；否则拿 `cwd` + `run` 去问 `GET /api/sessions/status`——`running` 表示有人正在干活，**不许清**，其他状态或 404 表示那个 run 已经结束。（写的是会话自己的 cwd 而不是 Bot 目录，是因为 `status` 按 `cwd + sessionId` 定位 transcript；复盘/装技能/导出这三种场景下会话本来就开在 Bot 目录里，两者恰好相同，这不影响规则——照抄 `$COCKPIT_CWD` 即可。写错一个字符，查出来就是"没有这个会话"，而它会被读成"锁是死的"。）即便判定为死锁，清理也是用户的决定，模型只报告。按时间抢占会让两个会话同时写，而且旧持锁者释放时还会删掉新持锁者的锁。
 - `mkdir` 与写 `owner` 是两步，所以"锁在但 `owner` 不在"是正常瞬时态，不能当成无主锁。拿到锁后重新读取目标文件（锁前读到的可能已过期），完成或失败都 `rm -rf` 释放。
 - `.reviews/<日期>-<时间>.md` 是唯一例外：它是工作产物不是记忆，文件名唯一因而不会互相覆盖，不取写锁。
 - **残余风险**：锁靠模型遵守约定，Cockpit 不强制。由于写入是显式且低频的，且 Claude Code 的 Edit/Write 会拒绝"读取后被改动"的文件、Codex 的 apply_patch 上下文不匹配会失败，静默覆盖的概率很低；锁主要避免两次更新写入互相矛盾的内容。
@@ -95,6 +95,23 @@ Cockpit 不介入 Bot 目录的读写。Bot 目录就是普通文件夹，用户
 - @product：/Users/me/.cockpit/bots/product/BOT.md
 - @finance：/Users/me/.cockpit/bots/finance/BOT.md
 ```
+
+### 2.1 子会话的 cwd
+
+`bot-run` 决定派出去的子会话开在哪，两种答案：
+
+| `@name` 这一行是 | cwd |
+| --- | --- |
+| 普通工作 | 派发方自己的 `pwd`，**原样照抄** |
+| 导出 / 复盘 / 装上 | 该 Bot 自己的目录（消息末尾那个 BOT.md 路径取 `dirname`） |
+
+- 普通工作在项目里进行，Bot 用绝对路径够到自己的文件即可；这三个维护动作的**对象就是 Bot 目录**——`.locks/` 在那里、复盘的 `.reviews/` 写在那里、Bot 目录若是 git 仓库也只有在那里才能 `git`。取 `dirname` 不算"打开 BOT.md"，不读正文的规矩照旧。
+- **普通工作那一格不是让模型填的值，是一个变量**：`${COCKPIT_CWD:-$PWD}` 原样写进 delegate 的 JSON（heredoc 未加引号，shell 自己展开），模型全程不需要知道它等于什么。
+- `COCKPIT_CWD` 由各引擎在 spawn 时注入（`claude.ts` / `codex.ts` / `builtinAgent/tools.ts`，走 `sanitizedSpawnEnv`，与 `COCKPIT_RUN_ID` 同一条路），值是该会话启动时的 cwd。
+- **它和 `pwd` 不是一回事**：会话中途 `cd` 过、或 Claude Code 在命令之间重置了 shell cwd，`pwd` 就变了而它不会。凡是"用来标识这个会话"的地方都必须用它——`POST /api/sessions/delegate`、写锁 owner 文件、以及两处按 `cwd + sessionId` 查的 `GET /api/sessions/status`。
+- 之所以要走环境变量而不是把 cwd 替换进 skill 文件：builtin skill 解析后写在 `~/.cockpit/skills/<cmd>/SKILL.md`，**整个 COCKPIT_HOME 共用一份且每次派发都重写**。派发方在 T 时刻读 `bot-run`、子会话在 T+几分钟才读 `bot-turn`，中间任何一次别的派发都会把文件改掉——per-dispatch 的值放进去不只是竞态，是系统性过期。`{{BASE_URL}}`、`{{COCKPIT_DIR}}` 能那样做，只因为它们对这台机器是常量。
+- 起因：cwd 是派发唯一需要、而模型手上又没有的事实，于是它去**推断**——实测踩过一次，会话开在某个仓库的子目录里，派发方看到仓库根有 `.git` 和 CLAUDE.md 就一路往上推到了根目录，子会话因此开在用户工作目录的上一级，transcript 落到了另一个项目下（`~/.claude/projects/` 按 cwd 编码分目录）。
+- **Cockpit 只提供值，不替模型选**：它看不出这一行是普通工作还是导出/复盘/装上（那三种要用 Bot 目录）。选哪个仍归 `bot-run` 的表。
 
 ## 3. BOT.md
 

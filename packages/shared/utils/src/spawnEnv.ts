@@ -61,6 +61,32 @@ export const HOST_ONLY_ENV_KEYS = [
 ] as const;
 
 /**
+ * WHAT COCKPIT ADDS ON THE WAY OUT
+ * --------------------------------
+ * Three variables reach an agent's shell that its own environment never had.
+ * They are how a skill can ask about the session it is running in without the
+ * model having to work the answer out — which it does badly, because the answer
+ * looks derivable and is not:
+ *
+ * - `COCKPIT_PORT`  — kept rather than added (it is namespaced; see below).
+ * - `COCKPIT_RUN_ID` — this turn's run key, so a delegating curl can name its
+ *   parent session.
+ * - `COCKPIT_CWD` — the session's own working directory, injected by each engine
+ *   from the cwd it was started with. **Not the same as `pwd`**: an agent that
+ *   `cd`s during a turn moves `pwd` and not this, and Claude Code will even
+ *   reset the shell's cwd between commands. Anything that must identify the
+ *   session — `POST /api/sessions/delegate`, the Bot write-lock owner file, and
+ *   both `GET /api/sessions/status` lookups that key on `cwd` + `sessionId` —
+ *   has to use this one. A dispatcher left to work it out from `pwd` and the
+ *   surroundings once walked up to the git root and delegated a directory above
+ *   the user's project, which put the child's transcript under a different
+ *   project entirely.
+ *
+ * Added per spawn site rather than here, because only the caller knows the
+ * session; this function just does not strip them.
+ */
+
+/**
  * Return type note: the two consumers disagree, so we satisfy both.
  * `child_process` options want `NodeJS.ProcessEnv`, which Next's global.d.ts
  * augments with a REQUIRED `NODE_ENV` — precisely the key we are removing. The
