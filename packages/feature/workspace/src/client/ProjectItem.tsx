@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserRuntime } from '@cockpit/effect-runtime';
-import { useWebSocket, sessionNumberClass, type SessionNumberStatus } from '@cockpit/shared-ui';
+import { useWebSocket, SessionNumberChip, sessionNumberClass, sessionNumberRing, sessionNumberWash, type SessionNumberStatus } from '@cockpit/shared-ui';
 import { fetchCurrentBranch } from '@cockpit/feature-explorer';
 
 /** One clickable session badge in a project row. `label` is the session's live
@@ -13,6 +13,9 @@ export interface ProjectSessionBadge {
   sessionId: string;
   label: string;
   status: SessionNumberStatus;
+  /** Bot that dispatched the session — the badge becomes a robot head, matching
+   *  the tab strip and every session list. */
+  bot?: string;
 }
 
 interface ProjectItemProps {
@@ -56,10 +59,16 @@ function SessionBadge({ badge, onSelect }: { badge: ProjectSessionBadge; onSelec
         e.stopPropagation();
         onSelect(badge.sessionId);
       }}
-      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border font-mono text-[9px] font-medium leading-none tabular-nums transition-transform hover:scale-125 ${sessionNumberClass(badge.status, false)}`}
-      title={badge.label}
+      className="flex flex-shrink-0 items-center justify-center rounded-full transition-transform hover:scale-125"
+      title={badge.bot ? `@${badge.bot}` : badge.label}
     >
-      {badge.label}
+      <SessionNumberChip
+        wash={sessionNumberWash(badge.status, false)}
+        ring={sessionNumberRing(badge.status)}
+        bot={badge.bot}
+      >
+        {badge.label}
+      </SessionNumberChip>
     </button>
   );
 }

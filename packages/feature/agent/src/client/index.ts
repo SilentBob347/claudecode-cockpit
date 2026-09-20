@@ -14,6 +14,16 @@ export { EngineConfigPicker } from './EngineConfigPicker';
 export { ProjectSessionsModal } from './ProjectSessionsModal';
 export { RecentSessionsModal } from './RecentSessionsModal';
 export { EngineBadge } from './EngineBadge';
+export { BotBadge } from './BotBadge';
+// Session DTOs (src/shared/sessionDto.ts) — re-exported here so feature-workspace
+// reads the same declaration the server builds against.
+export type {
+  SessionStatus,
+  SessionEngine,
+  SessionListItem,
+  GlobalSessionRecord,
+  GlobalSessionInfo,
+} from '../shared/sessionDto';
 export { EngineIcon, ENGINE_LABELS, ENGINE_IDS, type EngineAccentId } from './engineAccents';
 export { TodoViewerModal } from './TodoViewerModal';
 export { UserMessagesModal } from './UserMessagesModal';

@@ -402,7 +402,7 @@ export const POST = handler((req) =>
         new AppError({ message: 'parseTranscriptFile failed', cause }),
     });
 
-    const { messages, title, usage } = parseResult;
+    const { messages, title, bot, usage } = parseResult;
     const totalTurns = 'totalTurns' in parseResult ? parseResult.totalTurns : 0;
     const hasMore = 'hasMore' in parseResult ? parseResult.hasMore : false;
     // Index of the first returned turn, resolved server-side. Clients page further
@@ -412,6 +412,10 @@ export const POST = handler((req) =>
       messages,
       sessionId,
       title,
+      // Set only for a session a Bot dispatch opened (shared/botSession.ts). The tab
+      // strip and the running line render it beside the engine mark, so "a Bot is
+      // driving this" is answered by the same payload that answers "which engine".
+      bot,
       usage,
       totalTurns,
       hasMore,

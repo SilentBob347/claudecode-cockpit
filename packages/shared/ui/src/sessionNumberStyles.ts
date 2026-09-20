@@ -40,12 +40,29 @@
  */
 export type SessionNumberStatus = 'loading' | 'unread' | 'normal';
 
-export function sessionNumberClass(status: SessionNumberStatus, isActive: boolean): string {
-  if (status === 'loading') {
-    return 'relative session-number-running border-transparent bg-orange-11/15 text-orange-11';
-  }
+/**
+ * The running ring, alone — `''` for every other state.
+ *
+ * Split out from the wash because the two halves do not always live on the same
+ * element: a Bot chip is CSS-masked into a robot, and a mask clips the element's
+ * pseudo-elements, so the ring (a `::after` at inset:-2px, OUTSIDE the chip)
+ * has to sit on an unmasked wrapper while the wash stays on the masked chip.
+ * `relative` travels with the ring — it is what the `::after` positions against.
+ */
+export function sessionNumberRing(status: SessionNumberStatus): string {
+  return status === 'loading' ? 'relative session-number-running' : '';
+}
+
+/** The chip's own paint: background wash + numeral colour, no ring. */
+export function sessionNumberWash(status: SessionNumberStatus, isActive: boolean): string {
+  if (status === 'loading') return 'border-transparent bg-orange-11/15 text-orange-11';
   if (status === 'unread') return 'border-transparent bg-orange-11/15 text-orange-11';
   return isActive
     ? 'border-transparent bg-brand/15 text-brand'
     : 'border-transparent bg-muted-foreground/15 text-muted-foreground';
+}
+
+/** Both halves, for the callers that paint ring and wash on one element. */
+export function sessionNumberClass(status: SessionNumberStatus, isActive: boolean): string {
+  return [sessionNumberRing(status), sessionNumberWash(status, isActive)].filter(Boolean).join(' ');
 }

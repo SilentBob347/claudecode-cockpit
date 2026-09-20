@@ -388,6 +388,7 @@ export function ProjectSidebar({
             : session.status === 'unread'
               ? 'unread'
               : 'normal',
+          ...(session.bot ? { bot: session.bot } : {}),
         }));
       if (items.length > 0) map.set(project.cwd, items);
     }

@@ -17,6 +17,7 @@ import * as readline from 'readline';
 import { injectionKind, isHumanTurnStart } from '../../../shared/transcriptTurns';
 import { asyncLaunchTaskId, parseTaskNotification, type ToolCallTask } from '../../../shared/subagentTask';
 import { generateTitle } from '../../sessionTitle';
+import { detectBotName } from '../../../shared/botSession';
 import { appendTextPart, appendToolPart, joinAssistantText } from '../../../shared/assistantText';
 import type { MessagePart } from '../../../shared/assistantText';
 import {
@@ -151,6 +152,8 @@ export async function parseTranscriptFile(
 ): Promise<{
   messages: ChatMessage[];
   title: string;
+  /** Name of the Bot this session was dispatched for, if any (shared/botSession.ts). */
+  bot?: string;
   usage?: TokenUsage;
   totalTurns: number;
   hasMore: boolean;
@@ -225,6 +228,9 @@ export async function parseTranscriptFile(
   // Convert message format (full set)
   const allMessages = convertToChatMessages(rawMessages);
   const title = generateTitle(aiTitle, summary, userTextMessages);
+  // Who opened the session — read off the FIRST human message, so it is the same
+  // answer on every page of a paginated read (this parse always walks the whole file).
+  const bot = detectBotName(userTextMessages[0]);
 
   const turns = splitTurns(allMessages);
   const totalTurns = turns.length;
@@ -234,6 +240,7 @@ export async function parseTranscriptFile(
     return {
       messages: allMessages,
       title,
+      bot,
       usage: lastUsage,
       totalTurns,
       hasMore: false,
@@ -254,7 +261,7 @@ export async function parseTranscriptFile(
   const selectedTurns = turns.slice(startIndex, endIndex);
   const messages = selectedTurns.flat();
 
-  return { messages, title, usage: lastUsage, totalTurns, hasMore, startTurnIndex: startIndex };
+  return { messages, title, bot, usage: lastUsage, totalTurns, hasMore, startTurnIndex: startIndex };
 }
 
 /**
@@ -577,13 +584,16 @@ interface CodexPayload {
 
 export async function parseCodexTranscriptFile(
   filePath: string
-): Promise<{ messages: ChatMessage[]; title: string; usage?: TokenUsage }> {
+): Promise<{ messages: ChatMessage[]; title: string; bot?: string; usage?: TokenUsage }> {
   const fileStream = fs.createReadStream(filePath);
   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
   const messages: ChatMessage[] = [];
   let currentAssistant: ChatMessage | null = null;
   let title = 'Untitled Session';
+  // Kept beside the title because the title is truncated and lowercase-`@name`
+  // detection needs the line as written.
+  let firstUserText: string | null = null;
   let lastUsage: TokenUsage | undefined;
   let msgCounter = 0;
   // Paragraph-break only across a tool call (see assistantText.ts).
@@ -674,6 +684,7 @@ export async function parseCodexTranscriptFile(
         // First real user message becomes the title
         if (title === 'Untitled Session') {
           title = (text || CODEX_IMAGE_ONLY_TEXT).slice(0, 80);
+          firstUserText = text;
         }
       }
 
@@ -946,5 +957,5 @@ export async function parseCodexTranscriptFile(
 
   flushAssistant();
 
-  return { messages, title, usage: lastUsage };
+  return { messages, title, bot: detectBotName(firstUserText), usage: lastUsage };
 }

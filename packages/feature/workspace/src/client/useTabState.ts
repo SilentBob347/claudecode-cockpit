@@ -28,6 +28,9 @@ export interface TabInfo {
   title: string;
   isLoading?: boolean;
   engine?: ChatEngine;
+  /** Bot that dispatched this session, without the `@` — set by the transcript load
+   *  (see shared/botSession.ts). Derived, never persisted: every reopen re-reads it. */
+  bot?: string;
   ollamaModel?: string;
   deepseekModel?: DeepseekModel;
   kimiModel?: EngineModelId;
@@ -1074,7 +1077,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
   }, [initialCwd, addTab]);
 
   // Update tab state (loading, sessionId)
-  const updateTabState = useCallback((tabId: string, updates: { isLoading?: boolean; sessionId?: string; title?: string }) => {
+  const updateTabState = useCallback((tabId: string, updates: { isLoading?: boolean; sessionId?: string; title?: string; bot?: string }) => {
     setTabs((prev) => {
       const oldTab = prev.find(t => t.id === tabId);
       if (oldTab?.isLoading && updates.isLoading === false) {

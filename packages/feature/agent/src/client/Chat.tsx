@@ -115,6 +115,10 @@ interface ChatProps {
   onLoadingChange?: (isLoading: boolean) => void;
   onSessionIdChange?: (sessionId: string) => void;
   onTitleChange?: (title: string) => void;
+  /** The Bot that dispatched this session, or null when a human opened it. Reported
+   *  up (not rendered here) so the tab strip can mark the tab — Chat only learns it
+   *  because it is the component that loads the transcript. */
+  onBotChange?: (bot: string | null) => void;
   onShowGitStatus?: () => void;
   onOpenNote?: () => void;
   isFavorite?: boolean;
@@ -173,7 +177,7 @@ interface ChatProps {
  */
 const ENGINE_OPTIONS_ROW = `${COLUMN_HEADER_ROW} pl-3 pr-14 bg-card/50`;
 
-export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeContextWindow, onClaudeContextWindowChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode: planModeProp, onPlanModeChange, noHistory: noHistoryProp, onNoHistoryChange, hideHeader, hideSidebar, isActive = true, isFocused = isActive, peerTabId, peerSide, refreshSignal, onLoadingChange, onSessionIdChange, onTitleChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink, onOpenSessionBrowser, onOpenSettings }: ChatProps) {
+export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeContextWindow, onClaudeContextWindowChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode: planModeProp, onPlanModeChange, noHistory: noHistoryProp, onNoHistoryChange, hideHeader, hideSidebar, isActive = true, isFocused = isActive, peerTabId, peerSide, refreshSignal, onLoadingChange, onSessionIdChange, onTitleChange, onBotChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink, onOpenSessionBrowser, onOpenSettings }: ChatProps) {
   const { t } = useTranslation();
   const composerSlot = useComposerSlot();
   // Owned here, not in ChatInput: the composer is portalled when this pane is
@@ -260,6 +264,7 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
     loadHistoryByCwdAndSessionId,
     loadedSessionId,
     loadedEngine,
+    loadedBot,
   } = useChatHistory(messages, setMessages, sessionId, {
     cwd: initialCwd,
     initialSessionId,
@@ -282,6 +287,13 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
   // Resolution must happen BEFORE any use: `undefined` means "not known yet", NOT "claude",
   // yet every downstream check (`!engine`, the apiUrl fallback) reads the two identically.
   const engine = loadedEngine ?? engineProp ?? undefined;
+
+  // Hand the Bot up to the host as soon as the transcript names one. Effect rather
+  // than a call inside the hook: loadedBot settles once per load, and the host turns
+  // it into tab state.
+  useEffect(() => {
+    onBotChange?.(loadedBot);
+  }, [loadedBot, onBotChange]);
   const isClaudeEngine = !engine || engine === 'claude';
   const isCodexEngine = engine === 'codex';
   const effectiveClaudeModel = claudeModel ?? DEFAULT_CLAUDE_MODEL;
@@ -939,6 +951,7 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
             cwd={initialCwd}
             sessionId={sessionId}
             engine={engine}
+            botName={loadedBot}
             apiRetryInfo={apiRetryInfo}
             backgroundTasks={liveBackgroundTasks}
             hasMoreHistory={hasMoreHistory}

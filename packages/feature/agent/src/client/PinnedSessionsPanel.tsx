@@ -271,6 +271,7 @@ export function PinnedSessionsPanel({
                         coordinate={sessionNumbers?.[keyOf(session.cwd, session.sessionId)]}
                         status={badgeStatus(info?.status)}
                         statusLabel={statusLabelOf(t, info?.status)}
+                        bot={info?.bot}
                         className="ml-auto"
                       />
                     </div>

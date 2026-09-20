@@ -11,6 +11,8 @@ import {
   findCodexSessionPath,
   getSessionFilePath,
 } from '@cockpit/shared-utils';
+import { detectBotName } from '../../shared/botSession';
+import type { GlobalSessionInfo, GlobalSessionRecord, SessionStatus } from '../../shared/sessionDto';
 
 /** Claude-format transcript stores, probed in order by cwd+sessionId. Every API-key engine
  *  runs the Built-in Agent loop and writes exactly one store (~/.cockpit/<engine>-sessions). */
@@ -37,7 +39,7 @@ import { isRunActive } from '../sessionRunHub';
 import { sendPushNotification } from '../push/push';
 import { generateTitle } from '../sessionTitle';
 
-export type SessionStatus = 'normal' | 'loading' | 'unread';
+export type { SessionStatus };
 
 /**
  * state.json's 'loading' is a cache of a fact sessionRunHub already owns. Every writer
@@ -61,17 +63,8 @@ export function normalizeStatuses(sessions: GlobalSession[]): void {
   }
 }
 
-export interface GlobalSession {
-  cwd: string;
-  sessionId: string;
-  lastActive: number;
-  status: SessionStatus;
-  title?: string;
-  lastUserMessage?: string;
-  /** Written by the dispatcher (orchestrator passes spec.name); for sessions that
-   *  predate that, attachEngines still fills it in at read time. */
-  engine?: string;
-}
+/** A persisted session record. Field list: shared/sessionDto.ts. */
+export type GlobalSession = GlobalSessionRecord;
 
 interface GlobalState {
   sessions: GlobalSession[];
@@ -151,6 +144,12 @@ export async function updateGlobalState(
       // Carried like title/lastUserMessage: status-only updates (the client's
       // /api/global-state PATCH) pass no engine and must not erase it.
       engine: engine || existing?.engine,
+      // A Bot names itself in the session's FIRST message, so only the first
+      // write of a session can see it — by the second, `lastUserMessage` has
+      // moved on. Hence: derive on insert, carry forward on every update. A
+      // session that predates this field stays unmarked here and is marked from
+      // disk by getSessionPreview instead, which is the slower but complete path.
+      bot: existed ? existing?.bot : detectBotName(lastUserMessage),
     };
 
     if (existingIndex >= 0) {
@@ -286,6 +285,8 @@ export const UNTITLED_SESSION = 'Untitled Session';
 export interface SessionPreview {
   /** Live title (summary line preferred), regenerated from disk on every read. */
   title: string;
+  /** Bot that dispatched the session, from its first user message. */
+  bot?: string;
   lastUserMessage?: string;
   firstMessages: string[];
   lastMessages: string[];
@@ -398,6 +399,9 @@ export async function getSessionPreview(
 ): Promise<SessionPreview> {
   const { aiTitle, summary, messages } = await getSessionContent(cwd, sessionId);
   const title = generateTitle(aiTitle, summary, messages);
+  // `messages` are the session's human turns in order, so [0] is the line a Bot
+  // dispatch writes. Free: this read already happened for the title.
+  const bot = detectBotName(messages[0]);
   const lastUserMessage = messages[messages.length - 1];
   // Untruncated, unsampled corpus — keeps long messages and mid-conversation
   // messages searchable even though the display fields below drop them. Only the
@@ -405,10 +409,11 @@ export async function getSessionPreview(
   // searchText, so skip the multi-MB join+toLowerCase there.
   const searchText = opts?.includeSearchText ? [summary, ...messages].join('\n').toLowerCase() : '';
   if (messages.length <= SUMMARY_THRESHOLD) {
-    return { title, lastUserMessage, firstMessages: messages.map((m) => truncate(m)!), lastMessages: [], searchText };
+    return { title, bot, lastUserMessage, firstMessages: messages.map((m) => truncate(m)!), lastMessages: [], searchText };
   }
   return {
     title,
+    bot,
     lastUserMessage,
     firstMessages: messages.slice(0, SUMMARY_HEAD).map((m) => truncate(m)!),
     lastMessages: messages.slice(-SUMMARY_TAIL).map((m) => truncate(m)!),
@@ -417,10 +422,7 @@ export async function getSessionPreview(
 }
 
 /** GlobalSession enriched with the preview fields the session list renders. */
-export interface GlobalSessionSnapshot extends GlobalSession {
-  firstMessages?: string[];
-  lastMessages?: string[];
-}
+export type GlobalSessionSnapshot = GlobalSessionInfo;
 
 /**
  * Attach each session's engine, read from the project state the chat tabs persist
@@ -495,6 +497,9 @@ export async function getGlobalSessionsSnapshot(limit = 15): Promise<GlobalSessi
               ? preview.title
               : (session.title ?? preview.title),
           lastUserMessage: preview.lastUserMessage ?? session.lastUserMessage,
+          // Disk wins: it reads the true first message, while the persisted value
+          // is only there for sessions this snapshot never opens (the running ones).
+          bot: preview.bot ?? session.bot,
           firstMessages: preview.firstMessages,
           lastMessages: preview.lastMessages,
         };

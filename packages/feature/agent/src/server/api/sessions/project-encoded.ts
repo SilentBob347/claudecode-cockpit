@@ -6,32 +6,15 @@ import { CLAUDE_PROJECTS_DIR, COCKPIT_PROJECTS_DIR, getBuiltinSessionsRoot, find
 import { dynamicHandler } from '@cockpit/effect-runtime/server';
 import { AppError, ValidationError } from '@cockpit/effect-core';
 import { generateTitle } from '../../sessionTitle';
+import { detectBotName } from '../../../shared/botSession';
+import type { SessionListItem } from '../../../shared/sessionDto';
 import { CODEX_IMAGE_ONLY_TEXT, extractCodexUserContent } from '../session/codexTools';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-interface SessionInfo {
-  sessionId: string;
-  path: string;
-  title: string;
-  modifiedAt: string;
-  firstMessages: string[];
-  lastMessages: string[];
-  /**
-   * Untruncated, lowercased full-text corpus (title/summary + every user
-   * message) for the search panel. Display fields above stay truncated+sampled
-   * (50 chars, first 5 + last 5); matching reads this so long-message tails and
-   * mid-conversation messages remain searchable.
-   */
-  searchText: string;
-  /**
-   * Which engine wrote this transcript, derived from the store it lives in. Display only
-   * (the badge in the session lists) — reopening a session does NOT restore its engine from
-   * here: `/api/session-by-path` re-derives it and Chat writes the answer into session.json.
-   */
-  engine?: 'claude' | 'ollama' | 'codex' | 'kimi' | 'deepseek' | 'glm';
-}
+/** One row of this list. Field list: shared/sessionDto.ts. */
+type SessionInfo = SessionListItem;
 
 interface SessionListCacheEntry {
   mtimeMs: number;
@@ -40,7 +23,7 @@ interface SessionListCacheEntry {
 }
 
 interface SessionListCache {
-  version: 2;
+  version: 3;
   entries: Record<string, SessionListCacheEntry>;
 }
 
@@ -75,12 +58,12 @@ function sessionListCachePath(encodedPath: string): string {
 function readSessionListCache(encodedPath: string): SessionListCache {
   try {
     const raw = JSON.parse(fs.readFileSync(sessionListCachePath(encodedPath), 'utf-8')) as Partial<SessionListCache>;
-    if (raw.version !== 2 || !raw.entries || typeof raw.entries !== 'object') {
-      return { version: 2, entries: {} };
+    if (raw.version !== 3 || !raw.entries || typeof raw.entries !== 'object') {
+      return { version: 3, entries: {} };
     }
-    return { version: 2, entries: raw.entries as Record<string, SessionListCacheEntry> };
+    return { version: 3, entries: raw.entries as Record<string, SessionListCacheEntry> };
   } catch {
-    return { version: 2, entries: {} };
+    return { version: 3, entries: {} };
   }
 }
 
@@ -124,6 +107,7 @@ function buildSessionInfo(
     ? []
     : userMessages.slice(-5).map(m => truncateMessage(m));
   const displayTitle = generateTitle(aiTitle, summary, userMessages);
+  const bot = detectBotName(userMessages[0]);
 
   return {
     sessionId,
@@ -134,6 +118,10 @@ function buildSessionInfo(
     lastMessages,
     searchText: buildSearchText(displayTitle, userMessages),
     engine,
+    // Free — this list already holds every user message; [0] is the line a Bot
+    // dispatch writes. Note the cache version above: entries written before this
+    // field existed would otherwise be served without it forever.
+    ...(bot ? { bot } : {}),
   };
 }
 

@@ -9,6 +9,7 @@
  * session / skills / bash / ollama / settings / file / claude-stats endpoints.
  */
 import { Effect } from "effect"
+import type { GlobalSessionInfo } from "../../shared/sessionDto"
 import { AppError } from "@cockpit/effect-core"
 
 // ─────────────────────────────────────────────────────────
@@ -329,19 +330,8 @@ export const loadSessionsByProject = <T = unknown>(
 // its top-15 view over /ws/global-state.
 // ─────────────────────────────────────────────────────────
 
-export interface RecentSessionInfo {
-  cwd: string
-  sessionId: string
-  lastActive: number
-  status: string
-  title?: string
-  lastUserMessage?: string
-  firstMessages?: string[]
-  lastMessages?: string[]
-  /** Untruncated full-text corpus (cwd + title + summary + all user messages), lowercased. */
-  searchText?: string
-  engine?: string
-}
+/** Field list: shared/sessionDto.ts (GlobalSessionInfo). */
+export type RecentSessionInfo = GlobalSessionInfo
 
 export const loadRecentSessions = (): Effect.Effect<
   ReadonlyArray<RecentSessionInfo>,

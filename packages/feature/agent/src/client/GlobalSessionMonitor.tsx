@@ -7,6 +7,7 @@ import { sessionNumberClass } from '@cockpit/shared-ui';
 import { RecentSessionsModal } from './RecentSessionsModal';
 import { EngineBadge } from './EngineBadge';
 import { SessionNumberBadge, badgeStatus } from './SessionNumberBadge';
+import type { GlobalSessionInfo } from '../shared/sessionDto';
 import { sortSessionsForDisplay } from './sessionOrder';
 import {
   SessionHoverCard,
@@ -16,17 +17,9 @@ import {
   projectNameOf,
 } from './SessionRowParts';
 
-export interface GlobalSession {
-  cwd: string;
-  sessionId: string;
-  lastActive: number;
-  status: string;
-  title?: string;
-  lastUserMessage?: string;
-  firstMessages?: string[];
-  lastMessages?: string[];
-  engine?: string;
-}
+/** The session rows this panel renders. Field list: shared/sessionDto.ts — the
+ *  same declaration the server builds the payload against. */
+export type GlobalSession = GlobalSessionInfo;
 
 interface GlobalSessionMonitorProps {
   currentCwd?: string;
@@ -189,6 +182,7 @@ export function GlobalSessionMonitor({ currentCwd, onSwitchProject, onResolveSes
                         coordinate={sessionNumbers[`${session.cwd}\n${session.sessionId}`]}
                         status={badgeStatus(session.status)}
                         statusLabel={statusLabelOf(t, session.status)}
+                        bot={session.bot}
                         className="ml-auto"
                       />
                     </div>

@@ -102,6 +102,7 @@ export function MobileChat({ cwd, initialSessionId, initialTitle, onBack, isActi
     loadHistoryByCwdAndSessionId,
     loadedSessionId,
     loadedEngine,
+    loadedBot,
   } = useChatHistory(messages, setMessages, sessionId, {
     cwd,
     initialSessionId,
@@ -228,6 +229,7 @@ export function MobileChat({ cwd, initialSessionId, initialTitle, onBack, isActi
           cwd={cwd}
           sessionId={sessionId}
           engine={engine}
+          botName={loadedBot}
           apiRetryInfo={apiRetryInfo}
           backgroundTasks={liveBackgroundTasks}
           hasMoreHistory={hasMoreHistory}

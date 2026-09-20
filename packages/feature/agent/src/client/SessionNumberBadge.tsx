@@ -1,6 +1,6 @@
 'use client';
 
-import { sessionNumberClass, type SessionNumberStatus } from '@cockpit/shared-ui';
+import { SessionNumberChip, sessionNumberClass, sessionNumberRing, sessionNumberWash, type SessionNumberStatus } from '@cockpit/shared-ui';
 
 interface SessionNumberBadgeProps {
   projectNumber?: number | string;
@@ -15,6 +15,10 @@ interface SessionNumberBadgeProps {
   /** Translated name of that state, exposed as the chip's tooltip/aria text —
    *  the colour is the whole label now, so the words have to live somewhere. */
   statusLabel?: string;
+  /** Bot that dispatched the session: the round chip becomes a robot head, the
+   *  same mark the tab strip shows, so a session found in a list and the tab it
+   *  opens into are recognisably the same thing. */
+  bot?: string;
   className?: string;
 }
 
@@ -34,7 +38,7 @@ export function badgeStatus(status: string | undefined): SessionNumberStatus {
  *  session, not of the project it sits in, and animating both chips together turns
  *  a two-glyph coordinate into one moving blob you can no longer read as
  *  "project 5, session 1". The square chip therefore always stays idle. */
-export function SessionNumberBadge({ projectNumber, sessionNumber, coordinate, status = 'normal', statusLabel, className = '' }: SessionNumberBadgeProps) {
+export function SessionNumberBadge({ projectNumber, sessionNumber, coordinate, status = 'normal', statusLabel, bot, className = '' }: SessionNumberBadgeProps) {
   if (coordinate) {
     const [project, session] = coordinate.split('.');
     projectNumber ??= project;
@@ -45,7 +49,6 @@ export function SessionNumberBadge({ projectNumber, sessionNumber, coordinate, s
   }
   if (projectNumber == null && sessionNumber == null) return null;
 
-  const chipClass = 'flex h-4 w-4 items-center justify-center border';
   const coordinateLabel = [projectNumber, sessionNumber].filter((value) => value != null).join('.');
 
   return (
@@ -54,15 +57,19 @@ export function SessionNumberBadge({ projectNumber, sessionNumber, coordinate, s
       aria-label={statusLabel ? `${coordinateLabel} · ${statusLabel}` : coordinateLabel}
     >
       {projectNumber != null && (
-        <span className={`${chipClass} rounded-[4px] ${sessionNumberClass('normal', false)}`}>{projectNumber}</span>
+        <span className={`flex h-4 w-4 items-center justify-center border rounded-[4px] ${sessionNumberClass('normal', false)}`}>{projectNumber}</span>
       )}
+      {/* The round chip is the Bot-aware one: a Bot drives a SESSION, and the
+          square names the project it happens to sit in. */}
       {sessionNumber != null && (
-        <span
-          className={`${chipClass} rounded-full ${sessionNumberClass(status, false)}`}
+        <SessionNumberChip
+          wash={sessionNumberWash(status, false)}
+          ring={sessionNumberRing(status)}
+          bot={bot}
           title={statusLabel}
         >
           {sessionNumber}
-        </span>
+        </SessionNumberChip>
       )}
     </span>
   );

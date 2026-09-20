@@ -1,6 +1,7 @@
 /**
  * /api/global-state — P8+ migration
  */
+import type { GlobalSessionInfo } from "../../shared/sessionDto"
 import { Effect } from "effect"
 import { GLOBAL_STATE_FILE, readJsonFile } from "@cockpit/shared-utils"
 import { handler, ok, parseJsonRaw } from "@cockpit/effect-runtime/server"
@@ -15,20 +16,9 @@ import {
   type SessionStatus,
 } from "../state/globalState"
 
-interface GlobalSession {
-  cwd: string
-  sessionId: string
-  lastActive: number
-  status: SessionStatus
-  title?: string
-  lastUserMessage?: string
-  firstMessages?: string[]
-  lastMessages?: string[]
-  engine?: string
-}
 
 interface GlobalState {
-  sessions: GlobalSession[]
+  sessions: GlobalSessionInfo[]
 }
 
 export const GET = handler(() =>
@@ -63,6 +53,9 @@ export const GET = handler(() =>
               ...session,
               title,
               lastUserMessage: preview.lastUserMessage ?? session.lastUserMessage,
+              // Disk wins over the value persisted at insert time — same rule as
+              // the WS snapshot (getGlobalSessionsSnapshot).
+              bot: preview.bot ?? session.bot,
               firstMessages: preview.firstMessages,
               lastMessages: preview.lastMessages,
               // Untruncated full-text corpus for the search panel: cwd + title +

@@ -50,7 +50,8 @@ export { Tooltip } from './Tooltip';
 export { TooltipProvider } from './TooltipProvider';
 
 // Session/project number badge colours (tab bar, sidebar, every session list)
-export { sessionNumberClass, type SessionNumberStatus } from './sessionNumberStyles';
+export { sessionNumberClass, sessionNumberRing, sessionNumberWash, type SessionNumberStatus } from './sessionNumberStyles';
+export { SessionNumberChip } from './SessionNumberChip';
 
 // File icon (extension-based mapping)
 export { FileIcon, FolderIcon } from './FileIcon';

@@ -209,6 +209,7 @@ export function RecentSessionsModal({ isOpen, onClose, onSwitchProject, sessionN
                       coordinate={sessionNumbers[`${session.cwd}\n${session.sessionId}`]}
                       status={badgeStatus(session.status)}
                       statusLabel={session.status === 'loading' ? t('sessions.running') : session.status === 'unread' ? t('sessions.done') : undefined}
+                      bot={session.bot}
                       className="ml-auto"
                     />
                   </div>

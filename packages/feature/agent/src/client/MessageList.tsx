@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { useChatContextOptional } from './ChatContext';
 import { ENGINE_LABELS, EngineIcon, isEngineAccentId } from './engineAccents';
+import { BotBadge } from './BotBadge';
 import type { ChatMessage, ApiRetryInfo, BackgroundTaskInfo, ChatEngine, ToolCallInfo, LiveOutputTokens } from './types';
 import { MessageBubble } from './MessageBubble';
 // Tech debt: cross-package imports into the main shell.
@@ -71,6 +72,8 @@ interface MessageListProps {
   cwd?: string;
   sessionId?: string | null;
   engine?: ChatEngine;
+  /** Bot that dispatched this session (shared/botSession.ts); null for a human's session. */
+  botName?: string | null;
   apiRetryInfo?: ApiRetryInfo | null;
   /** Live background tasks holding the run resident after its result (see sdkLoop). */
   backgroundTasks?: BackgroundTaskInfo[];
@@ -165,7 +168,7 @@ export interface MessageListHandle {
 }
 
 export const MessageList = forwardRef<MessageListHandle, MessageListProps>(function MessageList(
-  { messages, isLoading, cwd, sessionId, engine, apiRetryInfo, backgroundTasks, liveOutputTokens, runningStartedAt, hasMoreHistory, isLoadingMore, onLoadMore, onFork, onDeleteTurn, onSendToPeer, peerSide, isActive = true, onContentSearch, onShowFileDiff, onOpenFileLink, onApprovePlan, onShowUserMessages },
+  { messages, isLoading, cwd, sessionId, engine, botName, apiRetryInfo, backgroundTasks, liveOutputTokens, runningStartedAt, hasMoreHistory, isLoadingMore, onLoadMore, onFork, onDeleteTurn, onSendToPeer, peerSide, isActive = true, onContentSearch, onShowFileDiff, onOpenFileLink, onApprovePlan, onShowUserMessages },
   ref
 ) {
   const { t, i18n } = useTranslation();
@@ -1116,6 +1119,9 @@ export const MessageList = forwardRef<MessageListHandle, MessageListProps>(funct
               <div className="flex justify-start mb-4">
                 <div className="px-1 py-1 max-w-[90%]">
                   <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                    {/* Robot first, engine second — the dispatched session says who
+                        asked before it says what is answering. */}
+                    <BotBadge bot={botName} />
                     <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center" aria-hidden="true">
                       <EngineIcon engine={runningEngine} className="h-4 w-4" />
                     </span>

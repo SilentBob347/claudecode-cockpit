@@ -53,7 +53,7 @@ interface ChatPanelProps {
   peerSide?: 'left' | 'right';
   // Forwarded to Chat: forced history refresh on explicit session jump (see ChatProps.refreshSignal)
   refreshSignal?: { sessionId: string; nonce: number } | null;
-  onStateChange: (tabId: string, updates: { isLoading?: boolean; sessionId?: string; title?: string }) => void;
+  onStateChange: (tabId: string, updates: { isLoading?: boolean; sessionId?: string; title?: string; bot?: string }) => void;
   onShowGitStatus?: () => void;
   onOpenNote?: () => void;
   isFavorite?: boolean;
@@ -89,6 +89,12 @@ export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollam
 
   const handleTitleChange = useCallback((title: string) => {
     onStateChange(tabId, { title });
+  }, [tabId, onStateChange]);
+
+  // `undefined` is sent on purpose when the session has no Bot: the tab may have
+  // been reused for another session, and the robot has to come off with it.
+  const handleBotChange = useCallback((bot: string | null) => {
+    onStateChange(tabId, { bot: bot ?? undefined });
   }, [tabId, onStateChange]);
 
   const handleEngineChange = useCallback((e: ChatEngine) => {
@@ -195,6 +201,7 @@ export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollam
       onLoadingChange={handleLoadingChange}
       onSessionIdChange={handleSessionIdChange}
       onTitleChange={handleTitleChange}
+      onBotChange={handleBotChange}
       onShowGitStatus={onShowGitStatus}
       onOpenNote={onOpenNote}
       isFavorite={isFavorite}

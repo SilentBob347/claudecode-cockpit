@@ -11,18 +11,10 @@ import { encodePath } from '@cockpit/shared-utils/encodePath';
 import { loadSessionsByProject } from './effect/agentClient';
 import { EngineBadge } from './EngineBadge';
 import { SessionNumberBadge } from './SessionNumberBadge';
+import type { SessionListItem } from '../shared/sessionDto';
 
-interface SessionInfo {
-  sessionId?: string;
-  path: string;
-  title: string;
-  modifiedAt: string;
-  firstMessages: string[];
-  lastMessages: string[];
-  /** Untruncated full-text corpus (title + summary + all user messages), lowercased. */
-  searchText?: string;
-  engine?: 'claude' | 'ollama' | 'codex' | 'kimi' | 'deepseek' | 'glm';
-}
+/** Rows come straight from /api/sessions/projects/[encodedPath]. */
+type SessionInfo = SessionListItem;
 
 interface ProjectSessionsModalProps {
   isOpen: boolean;
@@ -233,7 +225,7 @@ export function ProjectSessionsModal({ isOpen, onClose, cwd, onSelectSession, pr
                       {session.title}
                     </h4>
                     {projectNumber && sessionIndex >= 0 && (
-                      <SessionNumberBadge projectNumber={projectNumber} sessionNumber={sessionIndex + 1} className="ml-auto" />
+                      <SessionNumberBadge projectNumber={projectNumber} sessionNumber={sessionIndex + 1} bot={session.bot} className="ml-auto" />
                     )}
                   </div>
 

@@ -11,17 +11,10 @@ import {
   loadSessionsByProject,
   pickFolder,
 } from './effect/workspaceClient';
-import { EngineBadge, SessionNumberBadge } from '@cockpit/feature-agent';
+import { EngineBadge, SessionNumberBadge, type SessionListItem } from '@cockpit/feature-agent';
 
-interface SessionInfo {
-  sessionId?: string;
-  path: string;
-  title: string;
-  modifiedAt: string;
-  firstMessages: string[];
-  lastMessages: string[];
-  engine?: 'claude' | 'ollama' | 'codex' | 'kimi' | 'deepseek' | 'glm';
-}
+/** Rows come straight from /api/sessions/projects/[encodedPath]. */
+type SessionInfo = SessionListItem;
 
 interface ProjectInfo {
   name: string;
@@ -360,7 +353,7 @@ export function SessionBrowser({ isOpen, onClose, onSelectSession, onAddProject,
                               <h4 className="text-xs font-medium text-foreground truncate" data-tooltip={session.title}>
                                 {session.title}
                               </h4>
-                              {number && <SessionNumberBadge projectNumber={mappedProjectNumber} sessionNumber={sessionNumber} className="ml-auto" />}
+                              {number && <SessionNumberBadge projectNumber={mappedProjectNumber} sessionNumber={sessionNumber} bot={session.bot} className="ml-auto" />}
                             </div>
 
                             {/* Session Time */}

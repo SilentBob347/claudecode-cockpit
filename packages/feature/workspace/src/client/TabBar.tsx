@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 import { TabInfo } from './useTabState';
-import { sessionNumberClass, type SessionNumberStatus } from '@cockpit/shared-ui';
+import { SessionNumberChip, sessionNumberRing, sessionNumberWash, type SessionNumberStatus } from '@cockpit/shared-ui';
 import { EngineBadge, EngineIcon, ENGINE_IDS, ENGINE_LABELS, type EngineAccentId } from '@cockpit/feature-agent';
 import { Tooltip } from '@cockpit/shared-ui';
 import { Portal, usePanelPortalTarget } from '@cockpit/shared-ui';
@@ -13,11 +13,17 @@ import { useTranslation } from 'react-i18next';
 // Session number: circular shape pairs with the project number while keeping
 // the two navigation levels immediately distinguishable. Run/unread state lives
 // directly on this marker: a spinning ring while running, solid orange when done.
+//
+// A Bot-dispatched session (feature-agent shared/botSession.ts) keeps its number
+// and changes the chip's SHAPE — the circle becomes a robot head. Nothing is
+// added beside the number and nothing is taken from it: the marker rides on the
+// one piece of chrome every tab already has, and the status colours keep meaning
+// exactly what they meant. The two shapes live in SessionNumberChip.
 // ============================================
 
-function TabNumberIcon({ number, status, statusLabel, isActive, pinned }: { number: number; status: SessionNumberStatus; statusLabel?: string; isActive: boolean; pinned: boolean }) {
-  const colorClass = status !== 'normal'
-    ? sessionNumberClass(status, isActive)
+function TabNumberIcon({ number, status, statusLabel, isActive, pinned, bot }: { number: number; status: SessionNumberStatus; statusLabel?: string; isActive: boolean; pinned: boolean; bot?: string }) {
+  const wash = status !== 'normal'
+    ? sessionNumberWash(status, isActive)
     : pinned
       ? 'border-transparent bg-amber-9 text-black/80'
       : isActive
@@ -25,14 +31,16 @@ function TabNumberIcon({ number, status, statusLabel, isActive, pinned }: { numb
         : 'border-transparent bg-muted-foreground/25 text-foreground/75';
 
   return (
-    <span
-      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border font-mono text-[9px] font-medium leading-none tabular-nums transition-colors ${colorClass}`}
+    <SessionNumberChip
+      wash={wash}
+      ring={sessionNumberRing(status)}
+      bot={bot}
       role={status !== 'normal' ? 'status' : undefined}
-      aria-label={statusLabel}
-      aria-hidden={status === 'normal' ? 'true' : undefined}
+      ariaLabel={bot ? [statusLabel, `Bot session: @${bot}`].filter(Boolean).join(' · ') : statusLabel}
+      ariaHidden={status === 'normal' && !bot}
     >
       {number}
-    </span>
+    </SessionNumberChip>
   );
 }
 
@@ -228,6 +236,7 @@ export function TabBar({
                   statusLabel={status === 'loading' ? t('sessions.running') : status === 'unread' ? t('sessions.done') : undefined}
                   isActive={isActive}
                   pinned={pinned}
+                  bot={tab.bot}
                 />
               </div>
               <span className="flex-1 min-w-0 truncate">{tab.title}</span>

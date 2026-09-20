@@ -1350,6 +1350,39 @@ code[class*="language-"] .token {
   .session-number-running::after { animation: none; }
 }
 
+/* ---- Bot-session chip: the robot silhouette replaces the round wash ----
+ *
+ * A session a Bot dispatched keeps its ordinal — the number is how the tab is
+ * addressed, and dropping it to fit a robot in would trade information for a
+ * picture. What changes is the SHAPE behind the digit: the circle becomes a
+ * robot head (antenna, rounded skull, two ears), so "who is driving this tab"
+ * is answered by the chip's outline, before any colour is read.
+ *
+ * A mask, not a background image, because the chip's wash is a Tailwind `bg-*`
+ * class that changes with status (brand / orange while running / amber when
+ * pinned). Masking whatever that class paints means every variant gets the
+ * robot for free and none of them can drift out of sync.
+ *
+ * The digit is NOT clipped: the silhouette is solid, and the head's interior is
+ * where the number already sat. Callers nudge it down ~1px, since the head's
+ * centre sits below the box centre by the height of the antenna.
+ *
+ * Caution: a mask clips the element's pseudo-elements too, including
+ * .session-number-running's ::after ring at inset:-2px. TabBar therefore keeps
+ * that ring on an UNMASKED wrapper — never put the two classes on one element.
+ */
+.session-number-bot {
+  --bot-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='2.1' r='1.8'/%3E%3Crect x='11' y='2.1' width='2' height='3.9'/%3E%3Crect x='0.4' y='10.8' width='3' height='6.4' rx='1.5'/%3E%3Crect x='20.6' y='10.8' width='3' height='6.4' rx='1.5'/%3E%3Crect x='3.2' y='5.5' width='17.6' height='17' rx='5'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--bot-mask);
+  mask-image: var(--bot-mask);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
 /* ---- Chat running status: shimmer sweeping across the text ----
  *
  * The gradient is clipped to the glyphs, so the text color itself has to go
