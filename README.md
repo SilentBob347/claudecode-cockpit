@@ -284,7 +284,7 @@ forwards localhost automatically.
 > side and `/mnt/c/Users/me/proj` on the other, so paths passed between them
 > do not resolve. Keep Cockpit and your code in the same world.
 
-> Both `cockpit` (full name) and `cock` (short alias) ship with the package — use whichever you prefer. Docs and examples use `cockpit`; existing muscle memory keeps working.
+> The package ships a single command: `cockpit`. (The former `cock` alias has been removed — one name everywhere.)
 
 ### From source
 
@@ -292,7 +292,7 @@ forwards localhost automatically.
 git clone https://github.com/Surething-io/cockpit.git
 cd cockpit
 npm install
-npm run setup       # build + npm link (registers `cockpit` and `cock`)
+npm run setup       # build + npm link (registers `cockpit`)
 ```
 
 ## CLI

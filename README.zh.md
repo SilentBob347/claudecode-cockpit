@@ -210,7 +210,7 @@ cockpit ~/my-project   # 打开指定目录
 cockpit -h             # 帮助
 ```
 
-> `cockpit`（完整名）和 `cock`（短别名）都随包安装 —— 任选其一。文档与示例统一使用 `cockpit`，老用户的肌肉记忆 `cock` 仍然好使。
+> 包只提供一个命令：`cockpit`。（原先的短别名 `cock` 已移除，统一用一个名字。）
 
 ### 后台运行
 
@@ -281,7 +281,7 @@ cockpit
 git clone https://github.com/Surething-io/cockpit.git
 cd cockpit
 npm install
-npm run setup       # 构建 + npm link（注册 `cockpit` 与 `cock` 命令）
+npm run setup       # 构建 + npm link（注册 `cockpit` 命令）
 ```
 
 ## CLI

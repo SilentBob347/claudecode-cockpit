@@ -77,7 +77,7 @@ Each bubble is draggable; `Cmd+M` maximises the focused one. Bubbles persist acr
 
 - **Code references via comments.** In Explorer, select a range of code and add a comment (`Cmd+/` or the floating toolbar). Add as many as you need across files; when you're ready to ask the AI, the **Comments** modal in Agent renders every pinned comment as a formatted block (file path + line range + code + your note) that you can copy straight into chat. This is the supported path for "tell the AI about this specific code" — there is no drag-and-drop.
 - **Jump to file from search.** `Cmd+P` opens fuzzy file search and lands you in the Explorer tree at the matched file, ready to comment / preview / blame.
-- **Bubbles ↔ Agent.** Every Browser bubble (and one-shot / interactive terminal bubble) carries a **short-ID badge** in its title bar. Click it to register the bubble and copy `cock browser <id>` / `cock terminal <id>` to your clipboard — paste it into chat and the AI can drive that exact bubble through Cockpit's CLI.
+- **Bubbles ↔ Agent.** Every Browser bubble (and one-shot / interactive terminal bubble) carries a **short-ID badge** in its title bar. Click it to register the bubble and copy `cockpit browser <id>` / `cockpit terminal <id>` to your clipboard — paste it into chat and the AI can drive that exact bubble through Cockpit's CLI.
 
 ## Who this is for
 

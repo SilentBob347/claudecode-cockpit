@@ -11,7 +11,7 @@
 | **`/ex`** | Heavy structured discussion | ❌ | ❌ |
 | **`/go`** | Execution / landing mode | ❌ | ✅ Yes, with self-verification |
 | **`/cg`** | CodeGraph project exploration | ❌ | ❌ |
-| **`/cc`** | End-to-end verification via `cock` CLI (browser + terminal bubbles) | ❌ | ❌ (drives bubbles, not source edits) |
+| **`/cc`** | End-to-end verification via `cockpit` CLI (browser + terminal bubbles) | ❌ | ❌ (drives bubbles, not source edits) |
 | **`/cr`** | Full code review (static + dynamic) | ❌ | ❌ (produces findings, no edits) |
 | **`/ap`** | Implement a spec, logging out-of-spec decisions to an apply-notes file | ❌ | ✅ Yes |
 | **`/html`** | Build an interactive local React app wired to the [bash SDK](/en/docs/agent/html-apps/) | ❌ | ✅ Yes (writes the app) |
@@ -100,13 +100,13 @@ The graph builds itself the first time you ask. No setup, no project config. Wor
 Use when the code change is done and you want the AI to **actually run it**, click through the UI, watch network traffic, and confirm the behaviour really works.
 
 ```text
-/cc terminal: cock terminal abc123
-    browser:  cock browser xyz789
+/cc terminal: cockpit terminal abc123
+    browser:  cockpit browser xyz789
     verify the chat input "send" flow — message should land in the DB
     and the UI should refresh in real time
 ```
 
-`/cc` switches the AI into a mode that **uses the Cockpit CLI** — `cock terminal <id> output` to read terminal output, `cock browser <id> click/type/network` to drive a Browser bubble, etc. You need to give it the **short IDs** (click the badge on the terminal / browser bubble's header) so it knows which bubbles to drive.
+`/cc` switches the AI into a mode that **uses the Cockpit CLI** — `cockpit terminal <id> output` to read terminal output, `cockpit browser <id> click/type/network` to drive a Browser bubble, etc. You need to give it the **short IDs** (click the badge on the terminal / browser bubble's header) so it knows which bubbles to drive.
 
 Typically chained after [`/go`](#go-land-the-change) — `/go` writes the code, `/cc` verifies it actually works in the rendered UI. Full walkthrough in [Quickstart](/en/docs/get-started/quickstart/#end-to-end-verification--console---cc).
 

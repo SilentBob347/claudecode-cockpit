@@ -93,7 +93,7 @@ SMOKE_DIR=$(mktemp -d)
   echo "❌ Install failed — DO NOT push"
   exit 1
 }
-"$SMOKE_DIR/bin/cock" --version    # must report the new version
+"$SMOKE_DIR/bin/cockpit" --version    # must report the new version
 # Keep $SMOKE_DIR around for step 2b; clean up at the end.
 ```
 
@@ -113,7 +113,7 @@ Use **port 3458** for smoke — it avoids conflicts with both:
 - the local dev cockpit (port 3456) you usually have running
 - any prod cockpit (port 3457) you may also have installed via `npm link`
 
-The cock binary picks up `PORT=3458` from env and binds there. `env -i` strips inherited env (notably any `COCKPIT_PORT` leaked from a running dev cockpit) so the smoke can't accidentally probe the wrong instance.
+The cockpit binary picks up `PORT=3458` from env and binds there. `env -i` strips inherited env (notably any `COCKPIT_PORT` leaked from a running dev cockpit) so the smoke can't accidentally probe the wrong instance.
 
 **Port isolation is NOT enough — you MUST also isolate the data dir with `COCKPIT_HOME`.** Cockpit guards on its data dir (`~/.cockpit/server.json`), not on the port: if *any* cockpit (the dev one on 3456, a prod one on 3457) is already running off the default `~/.cockpit`, the smoke instance refuses to boot with:
 
@@ -125,7 +125,7 @@ The cock binary picks up `PORT=3458` from env and binds there. `env -i` strips i
 …and exits before binding 3458, so all three probes fail with `Couldn't connect to server` — a false negative that looks like a broken tarball (cost ~5 min of confused debugging in v1.0.230). Point `COCKPIT_HOME` at a throwaway temp dir so the smoke gets its own data dir and can't collide with a cockpit the human is actively using.
 
 ```bash
-# Boot the JUST-PACKED tarball, not the globally-linked cock.
+# Boot the JUST-PACKED tarball, not the globally-linked cockpit.
 # Re-install into a temp dir if you don't already have one from step 2a.
 SMOKE_PORT=3458
 SMOKE_HOME=$(mktemp -d)    # isolated data dir — avoids the "already running cockpit" guard
@@ -285,7 +285,7 @@ npm view @surething/cockpit version dist-tags
 npm view @surething/cockpit bin
 ```
 
-Expected: `version` matches new tag, `dist-tags.latest` matches, `bin` includes both `cockpit` and `cock`.
+Expected: `version` matches new tag, `dist-tags.latest` matches, `bin` includes `cockpit`.
 
 ### Step 6 — Replace the auto-generated release body with hand-authored notes
 

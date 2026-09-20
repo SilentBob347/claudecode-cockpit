@@ -61,7 +61,6 @@
   ],
   "bin": {
     "cockpit": "./bin/cockpit.mjs",
-    "cock": "./bin/cock.mjs",
     "cockpit-dev": "./bin/cockpit-dev.mjs"
   },
   "files": [

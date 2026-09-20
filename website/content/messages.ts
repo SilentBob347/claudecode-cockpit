@@ -292,7 +292,7 @@ export const messages = {
     },
     finalCta: {
       headline: 'Ready to fly?',
-      desc: 'Install once, then `cockpit` from any directory. (Or `cock` if you prefer the short alias.)',
+      desc: 'Install once, then `cockpit` from any directory.',
     },
     compare: {
       headline: 'How OpenCockpit compares',
@@ -790,7 +790,7 @@ export const messages = {
     },
     finalCta: {
       headline: '起飞吧',
-      desc: '一次安装，任意目录 `cockpit` 一键启动。（短别名 `cock` 同样可用。）',
+      desc: '一次安装，任意目录 `cockpit` 一键启动。',
     },
     compare: {
       headline: 'OpenCockpit 横向对比',

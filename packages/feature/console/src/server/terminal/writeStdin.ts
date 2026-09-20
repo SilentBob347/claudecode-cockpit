@@ -23,7 +23,7 @@
  *
  * Keep this file as the single source of truth — the previous duplicate
  * inline implementations diverged: the WS handler decoded control chars
- * but the HTTP handler wrote them as data, so `cock terminal <id> stdin
+ * but the HTTP handler wrote them as data, so `cockpit terminal <id> stdin
  * "$(printf '\\x03')"` could not interrupt a pipe-mode process.
  */
 import type { RunningCommand } from './RunningCommandRegistry';

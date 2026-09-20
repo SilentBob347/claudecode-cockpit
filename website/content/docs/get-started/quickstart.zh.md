@@ -19,7 +19,6 @@ npm install -g @surething/cockpit
 会在 PATH 装两个等价的命令：
 
 - **`cockpit`** —— 完整命令。
-- **`cock`** —— 日常用的短别名。
 
 验证安装：
 
@@ -130,17 +129,17 @@ Cockpit 真正发挥威力的地方是**并行工作流** —— 同时开多个
 代码改完先在本地跑起来:
 
 1. 切到 **Console**(`Cmd+3`),输入 `zsh` 起一个交互式终端,再 `npm run dev`。
-2. 终端气泡头部有个**短 ID 徽章**,点它把 `cock terminal <id>` 复制到剪贴板 —— 这样 AI 能通过 Cockpit CLI 读它的输出:`cock terminal <id> output`(拿最近输出)、`cock terminal <id> wait`(等命令收尾)、`cock terminal list`(列出所有注册过的终端)。
-3. 还在 Console,输入应用 URL(比如 `http://localhost:3456`)打开浏览器气泡。点浏览器气泡头部的短 ID 徽章拿到 `cock browser <id>`。**装了 [Chrome 扩展](/zh/docs/console/chrome-extension/#安装与自动重载) 后**通过 `cock browser <id> <action>` 真驱动 Chrome 标签页 —— 支持的 action 包括 `snapshot` / `navigate` / `click` / `type` / `fill` / `hover` / `evaluate` / `console` / `network` / `cookies` / `storage` / `perf`;不装也能在 iframe 里显示页面但功能有限。
+2. 终端气泡头部有个**短 ID 徽章**,点它把 `cockpit terminal <id>` 复制到剪贴板 —— 这样 AI 能通过 Cockpit CLI 读它的输出:`cockpit terminal <id> output`(拿最近输出)、`cockpit terminal <id> wait`(等命令收尾)、`cockpit terminal list`(列出所有注册过的终端)。
+3. 还在 Console,输入应用 URL(比如 `http://localhost:3456`)打开浏览器气泡。点浏览器气泡头部的短 ID 徽章拿到 `cockpit browser <id>`。**装了 [Chrome 扩展](/zh/docs/console/chrome-extension/#安装与自动重载) 后**通过 `cockpit browser <id> <action>` 真驱动 Chrome 标签页 —— 支持的 action 包括 `snapshot` / `navigate` / `click` / `type` / `fill` / `hover` / `evaluate` / `console` / `network` / `cookies` / `storage` / `perf`;不装也能在 iframe 里显示页面但功能有限。
 4. 在 Agent 用 **`/cc`** 让 AI 端到端测一遍 —— 把两个短 ID 顺手粘进 prompt 里:
 
    ```text
-   /cc 终端: cock terminal abc123
-       浏览器: cock browser xyz789
+   /cc 终端: cockpit terminal abc123
+       浏览器: cockpit browser xyz789
        测一下 chat 输入框的发送功能,验证消息能正确入库且 UI 实时刷新
    ```
 
-   `/cc` 让 AI 通过 `cock` CLI 直接驱动你给的终端和浏览器气泡,抓网络、读 DOM,把验证证据给你看。
+   `/cc` 让 AI 通过 `cockpit` CLI 直接驱动你给的终端和浏览器气泡,抓网络、读 DOM,把验证证据给你看。
 
 ### bug 修复 —— `/fx` → `/cg` → `/ex` → `/go`
 
@@ -171,7 +170,7 @@ Cockpit 真正发挥威力的地方是**并行工作流** —— 同时开多个
 - **worktree**: 并行 5 条工作线,需求 + bug 互不打扰
 - **Agent**: `/qa /cg /ex /go /fx /cc` 六个内置斜杠命令 + 划词评论的多轮对齐
 - **Explorer**: **变更** tab + 评注驱动的代码修复循环
-- **Console**: zsh 跑服务 + 浏览器气泡 + 气泡的**短 ID 徽章**注册,让 AI 能通过 `cock` CLI 闭环驱动它们
+- **Console**: zsh 跑服务 + 浏览器气泡 + 气泡的**短 ID 徽章**注册,让 AI 能通过 `cockpit` CLI 闭环驱动它们
 
 ## 升级
 

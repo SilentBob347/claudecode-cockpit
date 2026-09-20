@@ -136,7 +136,7 @@ export const docsSidebar: DocSection[] = [
   },
 
   // ─── 6. Reference (everything outside the running app) ────────────
-  // Three flat reference docs: CLI (the cock/cockpit binary surface),
+  // Three flat reference docs: CLI (the cockpit binary surface),
   // keyboard shortcuts, and the FAQ.
   // `chrome-extension` moved to Console (it's what powers Browser bubbles),
   // and `reviews` moved to Explorer (it's a Markdown-file-anchored surface).

@@ -39,7 +39,7 @@ const baseUrl = `http://localhost:${port}`;
 const { stdout, stderr, exit } = process;
 
 function printHelp() {
-  stdout.write(`Usage: cock connection list [--cwd PATH] [--all] [--json]
+  stdout.write(`Usage: cockpit connection list [--cwd PATH] [--all] [--json]
 
 Purpose:  Enumerate all bubbles (terminal + browser) across the running
           Cockpit server. Each entry carries the user-set title if any

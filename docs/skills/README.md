@@ -59,7 +59,7 @@ Two reasons:
 2. **They're versioned with the code that the playbook describes.** When
    the release workflow changes, the skill changes in the same PR.
    `git blame docs/skills/cockpit-release/SKILL.md` answers "why does the
-   release playbook do X?" the same way `git blame bin/cock.mjs` answers
+   release playbook do X?" the same way `git blame bin/cockpit.mjs` answers
    "why does the CLI handle Y?".
 
 The skills are **not** shipped as part of the npm package (`docs/` is

@@ -1,23 +1,22 @@
-OpenCockpit CLI 是运行中的 Cockpit 服务器 HTTP API 的一层薄包装。`npm install -g @surething/cockpit` 装两个等价的二进制:**`cockpit`**(完整名)和 **`cock`**(短别名)。服务器本身常驻;子命令通过 HTTP 调 `localhost:3457` 来查看或驱动你面板里开着的东西。
+OpenCockpit CLI 是运行中的 Cockpit 服务器 HTTP API 的一层薄包装。`npm install -g @surething/cockpit` 装一个二进制:**`cockpit`**。服务器本身常驻;子命令通过 HTTP 调 `localhost:3457` 来查看或驱动你面板里开着的东西。
 
 | 命令 | 作用 |
 |---|---|
-| [`cockpit`](#cockpit-and-cock) | 启动服务器(主入口) |
+| [`cockpit`](#cockpit) | 启动服务器(主入口) |
 | [`cockpit browser`](#cockpit-browser) | 驱动浏览器气泡 —— 导航、点击、执行 JS、抓网络 |
 | [`cockpit terminal`](#cockpit-terminal) | 读终端气泡的输出(只读;无 stdin) |
 | [`cockpit codegraph`](#cockpit-codegraph) | 在 shell 里查项目级代码索引 |
 | [`cockpit connection`](#cockpit-connection) | 列出所有气泡(终端 + 浏览器)及其标题 |
 | [`cockpit update`](#cockpit-update) | 升级到最新版本 |
 
-## cockpit 和 cock
+## cockpit
 
-`cockpit` 是主命令。短别名是 `cock` —— `npm install -g @surething/cockpit` 时两个都装。
+`cockpit` 是主命令，由 `npm install -g @surething/cockpit` 安装。
 
 ### 用法
 
 ```text
 cockpit [path] [options]
-cock    [path] [options]
 ```
 
 两个命令完全等价，选你喜欢打的。
@@ -73,7 +72,7 @@ Cockpit 监听 **3457**(dev 模式 **3456**)。可单次用 `--port` 覆盖,或�
 COCKPIT_PORT=4000 cockpit
 ```
 
-两者都设时 `--port` 优先。(`<数据目录>/server.json` 由运行中的服务写入,记录活实例的 pid/端口,供 `cock` 子命令和单实例保护使用;服务**不会**回读它来决定端口,手动改无效。)
+两者都设时 `--port` 优先。(`<数据目录>/server.json` 由运行中的服务写入,记录活实例的 pid/端口,供 `cockpit` 子命令和单实例保护使用;服务**不会**回读它来决定端口,手动改无效。)
 
 ### 子命令
 
@@ -112,7 +111,7 @@ cockpit update
 | 变量 | 效果 |
 |---|---|
 | `COCKPIT_HOME` | 数据目录,默认 `~/.cockpit`。指向别处可隔离某个实例的数据 —— 会话、定时任务、终端历史、设置、Skills —— 例如让 dev 实例与 prod 并存而不共享数据。支持 `~`、相对、绝对路径。 |
-| `COCKPIT_PORT` | 服务端口(同 `--port`);也被 `cock` 子命令与 `/cg` 片段读取。 |
+| `COCKPIT_PORT` | 服务端口(同 `--port`);也被 `cockpit` 子命令与 `/cg` 片段读取。 |
 | `PORT` | `COCKPIT_PORT` 未设时的兜底。 |
 | `COCKPIT_HOST` | 绑定 host。默认 `127.0.0.1`(仅本机);设 `0.0.0.0` 可在局域网 / 云沙盒暴露。 |
 | `COCKPIT_TOKEN` | 共享访问令牌(同 `--token`)。设置后,远程 HTTP/WS 请求必须携带它(cookie / `Authorization: Bearer` / `?token=`);本机 loopback 请求豁免。未设 = 不鉴权(完全开放)。详见[下文](#共享令牌访问网关)。 |
@@ -182,7 +181,7 @@ cockpit --token 你的密钥                            # 令牌模式:隧道需
 
 ## cockpit browser
 
-`cockpit browser <id> <action>`（或短名 `cock browser`）从外部驱动你正在跑的 Cockpit 里的浏览器气泡 —— 从聊天里的 AI、从 shell 脚本、从 CI、从任何地方。
+`cockpit browser <id> <action>`从外部驱动你正在跑的 Cockpit 里的浏览器气泡 —— 从聊天里的 AI、从 shell 脚本、从 CI、从任何地方。
 
 `<id>` 是浏览器气泡标题栏上的短 ID 徽章。点徽章注册气泡，把入门命令复制到剪贴板。
 
@@ -192,34 +191,34 @@ CLI 是为 **AI 驱动的 E2E** 设计的：每个命令都带可执行的错误
 
 ```bash
 # 诊断 AI 当前停在哪（轻量，永不阻塞）
-cock browser xa7k2 health
-cock browser xa7k2 status
+cockpit browser xa7k2 health
+cockpit browser xa7k2 status
 
 # 找元素并交互（selector 优先；ref 易失效）
-cock browser xa7k2 snapshot --filter 'role=button' --include-hidden-text
-cock browser xa7k2 click --text "Sign in"
-cock browser xa7k2 click --selector 'button[type="submit"]'
-cock browser xa7k2 fill --selector 'input[name="email"]' --value "user@example.com"
-cock browser xa7k2 submit --form-selector 'form#login'
+cockpit browser xa7k2 snapshot --filter 'role=button' --include-hidden-text
+cockpit browser xa7k2 click --text "Sign in"
+cockpit browser xa7k2 click --selector 'button[type="submit"]'
+cockpit browser xa7k2 fill --selector 'input[name="email"]' --value "user@example.com"
+cockpit browser xa7k2 submit --form-selector 'form#login'
 
 # 探后端（继承页面登录态）
-cock browser xa7k2 fetch /api/users/me
-cock browser xa7k2 fetch /api/items --method POST --body '{"name":"hello"}'
-cock browser xa7k2 fetch /api/items --json '$.data[0].id'
+cockpit browser xa7k2 fetch /api/users/me
+cockpit browser xa7k2 fetch /api/items --method POST --body '{"name":"hello"}'
+cockpit browser xa7k2 fetch /api/items --json '$.data[0].id'
 
 # act → wait → assert（E2E 原子步骤）
-cock browser xa7k2 click --text "Save"
-cock browser xa7k2 wait --network-idle --quiet-ms 500
-cock browser xa7k2 assert --selector '[role="status"]' --text "Saved"
-cock browser xa7k2 assert --fetch /api/items --jsonpath '$.count' --equals 5
+cockpit browser xa7k2 click --text "Save"
+cockpit browser xa7k2 wait --network-idle --quiet-ms 500
+cockpit browser xa7k2 assert --selector '[role="status"]' --text "Saved"
+cockpit browser xa7k2 assert --fetch /api/items --jsonpath '$.count' --equals 5
 
 # 测试隔离
-cock browser xa7k2 reset --cookies --storage --reload
-cock browser xa7k2 set --type cookie --name token --value abc123 --path /
+cockpit browser xa7k2 reset --cookies --storage --reload
+cockpit browser xa7k2 set --type cookie --name token --value abc123 --path /
 
 # 跑任意 JS（逃生口 —— 能用 fetch/click-by-selector 就别用 evaluate）
-cock browser xa7k2 evaluate "document.title"
-cock browser xa7k2 evaluate --all-frames "await fetch('/api/x').then(r=>r.json())"
+cockpit browser xa7k2 evaluate "document.title"
+cockpit browser xa7k2 evaluate --all-frames "await fetch('/api/x').then(r=>r.json())"
 ```
 
 ### 完整 action 列表
@@ -361,7 +360,7 @@ body [e0#v3]
 
 ### 退出码
 
-成功 `0`，失败非零（ref 失效、网络错、断言失败、selector 无匹配 …）。完整退出码列表见 [主 CLI 页](#cockpit-and-cock)。
+成功 `0`，失败非零（ref 失效、网络错、断言失败、selector 无匹配 …）。完整退出码列表见 [主 CLI 页](#cockpit)。
 
 ### 何时不该用这个 CLI
 
@@ -371,9 +370,9 @@ body [e0#v3]
 
 ## cockpit terminal
 
-`cockpit terminal <id> <action>`(或 `cock terminal`)从外部**读取**终端气泡的输出 —— 拿缓冲输出、等命令收尾、列出已注册的气泡。
+`cockpit terminal <id> <action>`(或 `cockpit terminal`)从外部**读取**终端气泡的输出 —— 拿缓冲输出、等命令收尾、列出已注册的气泡。
 
-> 注意:终端 CLI 故意设计成**只读**。**没有 `stdin`** 也**没有 `follow` 流式跟随** —— 想驱动 shell 用浏览器气泡 + `cock browser`,或在 Cockpit UI 里跟气泡直接交互。代码注释:"read-only by design; write side belongs to the Bash tool / web UI"。
+> 注意:终端 CLI 故意设计成**只读**。**没有 `stdin`** 也**没有 `follow` 流式跟随** —— 想驱动 shell 用浏览器气泡 + `cockpit browser`,或在 Cockpit UI 里跟气泡直接交互。代码注释:"read-only by design; write side belongs to the Bash tool / web UI"。
 
 `<id>` 是终端气泡标题栏的短 ID 徽章。点徽章注册气泡,把入门命令复制到剪贴板。
 
@@ -389,24 +388,24 @@ body [e0#v3]
 
 ```bash
 # 找你的气泡
-cock terminal list
+cockpit terminal list
 
 # 抓当前屏幕内容
-cock terminal xy789 output
+cockpit terminal xy789 output
 
 # 等 npm run build 跑完
-cock terminal xy789 wait
+cockpit terminal xy789 wait
 
 # 跑完后看结果
-cock terminal xy789 output | tail -50
+cockpit terminal xy789 output | tail -50
 ```
 
 ### 什么时候用
 
 主要场景:
 
-- **AI 通过气泡读你 shell 在跑什么。** 在 Cockpit 终端气泡里启动 `npm run dev`。聊天里把 `cock terminal <id>` 给 AI,它可以 `output` 拿最近日志、`wait` 等命令收尾。
-- **CI / 脚本里从外部观察 Cockpit 里的长跑命令。** 比如启动器脚本在 Cockpit 终端跑 `npm run dev`,然后另一个脚本 `cock terminal <id> output` 抓日志做断言。
+- **AI 通过气泡读你 shell 在跑什么。** 在 Cockpit 终端气泡里启动 `npm run dev`。聊天里把 `cockpit terminal <id>` 给 AI,它可以 `output` 拿最近日志、`wait` 等命令收尾。
+- **CI / 脚本里从外部观察 Cockpit 里的长跑命令。** 比如启动器脚本在 Cockpit 终端跑 `npm run dev`,然后另一个脚本 `cockpit terminal <id> output` 抓日志做断言。
 
 ### 限制
 
@@ -489,43 +488,43 @@ affected  <file>                                     # 每行一个测试路径
 | `0` | 有输出 |
 | `1` | 空结果（无 caller / 无测试 / 无命中）—— 配合 shell pipeline 短路 |
 | `2` | 参数错误 或 服务端 4xx |
-| `3` | Cockpit 服务器无法连接。用 `cock <项目路径>` 把它拉起。 |
+| `3` | Cockpit 服务器无法连接。用 `cockpit <项目路径>` 把它拉起。 |
 
 ### 前置条件
 
 默认连接 `http://localhost:3457`(跟主 Cockpit 服务**同一个端口**,不是单独的 codegraph 端口)。host 恒为 loopback(CLI 与 server 总在同机),只能改端口:
 
 ```bash
-COCKPIT_PORT=… cock codegraph …
+COCKPIT_PORT=… cockpit codegraph …
 ```
 
 ### 示例
 
 ```bash
-cock codegraph search getCodeIndex
+cockpit codegraph search getCodeIndex
 ```
 
 ```bash
-cock codegraph related getCodeIndex --top 5
+cockpit codegraph related getCodeIndex --top 5
 ```
 
 ```bash
-cock codegraph risk searchIndex --depth 2
+cockpit codegraph risk searchIndex --depth 2
 ```
 
 ```bash
 # 列出本次 diff 影响的测试路径（一行一个）：
-git diff --name-only | cock codegraph affected --stdin
+git diff --name-only | cockpit codegraph affected --stdin
 ```
 
 ```bash
 # 直接驱动 jest 跑这些测试：
-git diff --name-only | cock codegraph affected --stdin --as-cmd jest
+git diff --name-only | cockpit codegraph affected --stdin --as-cmd jest
 ```
 
 ```bash
 # 同样思路给 vitest：
-git diff --name-only | cock codegraph affected --stdin --as-cmd "vitest run"
+git diff --name-only | cockpit codegraph affected --stdin --as-cmd "vitest run"
 ```
 
 ### 相关页面
@@ -586,7 +585,7 @@ cockpit connection list [--cwd PATH] [--all] [--json]
 | `0` | 有气泡 |
 | `1` | 过滤后空（没气泡） |
 | `2` | 用法 / 参数错误 |
-| `3` | Cockpit 服务器连不上。用 `cock <项目路径>` 启动。 |
+| `3` | Cockpit 服务器连不上。用 `cockpit <项目路径>` 启动。 |
 
 ### 示例
 

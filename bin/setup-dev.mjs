@@ -2,18 +2,17 @@
 /**
  * Selective symlink for `cockpit-dev` — installs ONLY the dev binary as
  * a live symlink to local source, without touching the global `cockpit`
- * / `cock` binaries which come from `npm install -g @surething/cockpit`.
+ * binary which comes from `npm install -g @surething/cockpit`.
  *
  * Why not `npm link`:
  *   `npm link` is all-or-nothing — it overrides ALL package.json `bin`
- *   entries (cockpit, cock, cockpit-dev) with symlinks to local source.
+ *   entries (cockpit, cockpit-dev) with symlinks to local source.
  *   That means your prod `cockpit` becomes the dev source too, and any
  *   broken commit in the repo immediately breaks production usage. The
  *   `unlink` / `install -g` dance to recover is friction.
  *
  *   This script avoids that by symlinking JUST `cockpit-dev`. Result:
  *     - `cockpit`      → unchanged (npm-installed, stable, follows releases)
- *     - `cock`         → unchanged (npm-installed, prod alias)
  *     - `cockpit-dev`  → symlink → /<repo>/bin/cockpit-dev.mjs (live)
  *
  *   You never need to "unlink"; the symlink coexists with the npm install
@@ -91,4 +90,4 @@ console.log('  cockpit-dev --version              # should report current local 
 console.log('  cockpit-dev codegraph search foo   # talks to dev server on port 3456');
 console.log('');
 console.log('Edits to bin/*.mjs are live (no rerun needed).');
-console.log('Prod `cockpit` / `cock` are untouched — they still come from your npm install.');
+console.log('Prod `cockpit` is untouched — it still comes from your npm install.');

@@ -21,7 +21,7 @@
  * component test into `TypeError: React.act is not a function`, which reads
  * like a broken react-dom install.
  *
- * This only reproduces in prod mode (`cockpit` / `cock`); the dev server takes
+ * This only reproduces in prod mode (`cockpit`); the dev server takes
  * the `dev: true` branch and never sets these — so you cannot see it while
  * developing cockpit itself.
  *

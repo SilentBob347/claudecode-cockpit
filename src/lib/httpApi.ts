@@ -327,7 +327,7 @@ export async function handleTerminalApi(
     }
     // Shared with WS /ws/terminal stdin handler — pipe-mode control chars
     // (\x03 / \x1a / \x04) are decoded into SIGINT / SIGTSTP / EOF here so
-    // `cock terminal <id> stdin "$(printf '\x03')"` actually interrupts a
+    // `cockpit terminal <id> stdin "$(printf '\x03')"` actually interrupts a
     // pipe-mode child instead of dropping 0x03 into its stdin as data.
     const ok2 = writeStdinToCommand(cmd, data)
     if (!ok2) {

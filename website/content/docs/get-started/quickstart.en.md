@@ -19,7 +19,6 @@ npm install -g @surething/cockpit
 This puts two identical binaries on your PATH:
 
 - **`cockpit`** — the canonical name.
-- **`cock`** — short alias for everyday use.
 
 Verify:
 
@@ -131,18 +130,18 @@ Now the same Cockpit window can hold 5 project tabs in parallel: 3 for feature w
 Once the code's in, run it locally:
 
 1. Switch to **Console** (`Cmd+3`), type `zsh` for an interactive terminal, then `npm run dev`.
-2. The terminal bubble's header carries a **short-ID badge** — click it to copy `cock terminal <id>` to your clipboard so the AI can read what the terminal's doing via Cockpit's CLI: `cock terminal <id> output` (recent output), `cock terminal <id> wait` (wait for the running command to settle), `cock terminal list` (list all registered terminals).
-3. Still in Console, type your app's URL (e.g. `http://localhost:3456`) to open a Browser bubble. Click that bubble's short-ID badge to grab `cock browser <id>` the same way. **With the [Chrome extension](/en/docs/console/chrome-extension/#install) installed**, `cock browser <id> <action>` drives a real Chrome tab — supported actions include `snapshot` / `navigate` / `click` / `type` / `fill` / `hover` / `evaluate` / `console` / `network` / `cookies` / `storage` / `perf`. Without the extension you still get the page in an iframe but with limited reach.
+2. The terminal bubble's header carries a **short-ID badge** — click it to copy `cockpit terminal <id>` to your clipboard so the AI can read what the terminal's doing via Cockpit's CLI: `cockpit terminal <id> output` (recent output), `cockpit terminal <id> wait` (wait for the running command to settle), `cockpit terminal list` (list all registered terminals).
+3. Still in Console, type your app's URL (e.g. `http://localhost:3456`) to open a Browser bubble. Click that bubble's short-ID badge to grab `cockpit browser <id>` the same way. **With the [Chrome extension](/en/docs/console/chrome-extension/#install) installed**, `cockpit browser <id> <action>` drives a real Chrome tab — supported actions include `snapshot` / `navigate` / `click` / `type` / `fill` / `hover` / `evaluate` / `console` / `network` / `cookies` / `storage` / `perf`. Without the extension you still get the page in an iframe but with limited reach.
 4. In Agent, use **`/cc`** and paste both short IDs into the prompt to ask the AI for an end-to-end check:
 
    ```text
-   /cc terminal: cock terminal abc123
-       browser:  cock browser xyz789
+   /cc terminal: cockpit terminal abc123
+       browser:  cockpit browser xyz789
        verify the chat input "send" flow — message should land in the DB
        and the UI should refresh in real time
    ```
 
-   `/cc` has the AI drive your terminal and browser bubbles directly through the `cock` CLI, capture network traffic and DOM, then hand you the evidence.
+   `/cc` has the AI drive your terminal and browser bubbles directly through the `cockpit` CLI, capture network traffic and DOM, then hand you the evidence.
 
 ### Bug fixing — `/fx` → `/cg` → `/ex` → `/go`
 
@@ -174,7 +173,7 @@ Switch to another worktree's tab to chase a bug. The loop mirrors feature work, 
 - **worktrees** — 5 parallel work streams, features and bugs side by side
 - **Agent** — six built-in slash commands (`/qa /cg /ex /go /fx /cc`) plus highlight-comment for multi-round alignment
 - **Explorer** — **Status** tab plus comment-driven fix-up loop
-- **Console** — zsh service runner + Browser bubble + each bubble's **short-ID badge** so the AI can close the loop through the `cock` CLI
+- **Console** — zsh service runner + Browser bubble + each bubble's **short-ID badge** so the AI can close the loop through the `cockpit` CLI
 
 ## Upgrading
 

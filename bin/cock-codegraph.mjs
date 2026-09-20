@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * cock codegraph — unified CLI for all 10 /api/projectGraph/* endpoints.
+ * cockpit codegraph — unified CLI for all 10 /api/projectGraph/* endpoints.
  *
  * Usage:
- *   cock codegraph                         List subcommands
- *   cock codegraph <sub> --help            Per-subcommand help
- *   cock codegraph <sub> ... [--json]      All subcommands accept --json
+ *   cockpit codegraph                         List subcommands
+ *   cockpit codegraph <sub> --help            Per-subcommand help
+ *   cockpit codegraph <sub> ... [--json]      All subcommands accept --json
  *
  * Subcommands map 1:1 to HTTP endpoints; the CLI is a thin shim that
  * shares the running server's live CodeIndex (no per-invocation parse).
@@ -38,7 +38,7 @@ if (!sub || sub === '-h' || sub === '--help') {
 }
 
 if (!SUBCMDS.includes(sub)) {
-  stderr.write(`cock codegraph: unknown subcommand "${sub}"\n`);
+  stderr.write(`cockpit codegraph: unknown subcommand "${sub}"\n`);
   stderr.write(`Available: ${SUBCMDS.join(', ')}\n`);
   exit(2);
 }
@@ -92,7 +92,7 @@ async function get(path, params) {
     stderr.write(
       `codegraph: cannot reach Cockpit at ${BASE}\n` +
         `        (${err?.code ?? err?.name ?? 'fetch failed'})\n` +
-        `        Start it with: cock\n`,
+        `        Start it with: cockpit\n`,
     );
     exit(3);
   }
@@ -116,7 +116,7 @@ async function post(path, body) {
     stderr.write(
       `codegraph: cannot reach Cockpit at ${BASE}\n` +
         `        (${err?.code ?? err?.name ?? 'fetch failed'})\n` +
-        `        Start it with: cock\n`,
+        `        Start it with: cockpit\n`,
     );
     exit(3);
   }
@@ -542,7 +542,7 @@ async function cmdAffected() {
 // ============================================================================
 
 function printTopHelp() {
-  stdout.write(`Usage: cock codegraph <subcommand> [options]
+  stdout.write(`Usage: cockpit codegraph <subcommand> [options]
 
 Lookups (mirror existing /api/projectGraph/* endpoints — coordinates only):
   search   <query>                       Find symbols by name (file + qname hits)
@@ -589,19 +589,19 @@ Exit codes:
   0  output produced
   1  empty result (no callers / no tests / no hits) — short-circuit shell pipelines
   2  argument or 4xx server error
-  3  Cockpit server not reachable (start it: cock <project-path>)
+  3  Cockpit server not reachable (start it: cockpit <project-path>)
 
 Prerequisites:
   Cockpit server running at ${BASE}
   (override port: COCKPIT_PORT; host is always loopback)
 
 Examples:
-  cock codegraph search getCodeIndex
-  cock codegraph related getCodeIndex --top 5
-  cock codegraph risk searchIndex --depth 2
-  git diff --name-only | cock codegraph affected --stdin                       # → newline test paths
-  git diff --name-only | cock codegraph affected --stdin --as-cmd jest         # → jest "a" "b" …
-  git diff --name-only | cock codegraph affected --stdin --as-cmd "vitest run" # → vitest run "a" "b" …
+  cockpit codegraph search getCodeIndex
+  cockpit codegraph related getCodeIndex --top 5
+  cockpit codegraph risk searchIndex --depth 2
+  git diff --name-only | cockpit codegraph affected --stdin                       # → newline test paths
+  git diff --name-only | cockpit codegraph affected --stdin --as-cmd jest         # → jest "a" "b" …
+  git diff --name-only | cockpit codegraph affected --stdin --as-cmd "vitest run" # → vitest run "a" "b" …
 `);
 }
 
@@ -618,14 +618,14 @@ Examples:
  *   Exit codes: <ints + meaning>
  *   Examples:   <2-4 worked invocations>
  *
- * Self-documenting like `cock terminal <id>` — agents are stateless between
+ * Self-documenting like `cockpit terminal <id>` — agents are stateless between
  * tool calls, so the help has to carry everything they need.
  */
 // Lazy — exposed via getSubHelp() so the top-level `printSubHelp(sub)`
 // call (which runs before this declaration is reached in module order)
 // doesn't hit a const TDZ.
 function getSubHelp() { return {
-  search: `Usage: cock codegraph search <query> [--limit N=15] [--include-literals] [--json]
+  search: `Usage: cockpit codegraph search <query> [--limit N=15] [--include-literals] [--json]
 
 Purpose:  Find symbols (and files) matching a name fragment. Tokenised
           match across name + qualifiedName + filePath, with case +
@@ -651,13 +651,13 @@ JSON keys: files[].target, symbols[].target.{filePath,line,symbolKind,qualifiedN
 Exit: 0=hits, 1=no hits, 2=usage, 3=server unreachable
 
 Examples:
-  cock codegraph search getCodeIndex
-  cock codegraph search build_code_index             # snake-case query, still finds buildCodeIndex
-  cock codegraph search useChatStore --limit 5
-  cock codegraph search 'agent.fork' --include-literals    # find a name hiding in a literal
-  cock codegraph search authenticate --json | jq '.symbols[].target'`,
+  cockpit codegraph search getCodeIndex
+  cockpit codegraph search build_code_index             # snake-case query, still finds buildCodeIndex
+  cockpit codegraph search useChatStore --limit 5
+  cockpit codegraph search 'agent.fork' --include-literals    # find a name hiding in a literal
+  cockpit codegraph search authenticate --json | jq '.symbols[].target'`,
 
-  callers: `Usage: cock codegraph callers <qname> [--file PATH] [--json]
+  callers: `Usage: cockpit codegraph callers <qname> [--file PATH] [--json]
 
 Purpose:  Direct callers of <qname> (1-hop). For transitive use 'impact'
           or 'risk'. Pass --file when the qname exists in multiple files
@@ -676,11 +676,11 @@ Stderr:
 Exit: 0=callers found, 1=no callers, 2=usage/qname missing, 3=server
 
 Examples:
-  cock codegraph callers getCodeIndex
-  cock codegraph callers GET --file packages/feature/explorer/src/server/api/projectGraph/risk.ts
-  cock codegraph callers searchIndex --json`,
+  cockpit codegraph callers getCodeIndex
+  cockpit codegraph callers GET --file packages/feature/explorer/src/server/api/projectGraph/risk.ts
+  cockpit codegraph callers searchIndex --json`,
 
-  callees: `Usage: cock codegraph callees <qname> [--file PATH] [--json]
+  callees: `Usage: cockpit codegraph callees <qname> [--file PATH] [--json]
 
 Purpose:  What <qname> calls directly (1-hop outgoing). Mirror of
           'callers'. Same shape, opposite direction.
@@ -693,10 +693,10 @@ Output (plain, TAB-separated):
 Exit: 0=callees found, 1=none, 2=usage, 3=server
 
 Examples:
-  cock codegraph callees runDialogue
-  cock codegraph callees buildCodeIndex --file packages/feature/explorer/src/server/codeMap/projectGraph/codeIndex.ts`,
+  cockpit codegraph callees runDialogue
+  cockpit codegraph callees buildCodeIndex --file packages/feature/explorer/src/server/codeMap/projectGraph/codeIndex.ts`,
 
-  impact: `Usage: cock codegraph impact <qname> [--file PATH] [--depth N=2] [--json]
+  impact: `Usage: cockpit codegraph impact <qname> [--file PATH] [--depth N=2] [--json]
 
 Purpose:  Transitive callers via BFS, up to <depth> hops. Returns a
           flat node list capped at 500 server-side. For ranked + bounded
@@ -716,11 +716,11 @@ Stderr:
 Exit: 0=impacted nodes, 1=target only / no impact, 2=usage, 3=server
 
 Examples:
-  cock codegraph impact getCodeIndex
-  cock codegraph impact validateCwd --depth 3
-  cock codegraph impact searchIndex --json | jq '.nodes | length'`,
+  cockpit codegraph impact getCodeIndex
+  cockpit codegraph impact validateCwd --depth 3
+  cockpit codegraph impact searchIndex --json | jq '.nodes | length'`,
 
-  file: `Usage: cock codegraph file <path> [--json]
+  file: `Usage: cockpit codegraph file <path> [--json]
 
 Purpose:  Symbol tree of one file. Useful for "what's in this file" or
           for picking a qname to feed to callers/related/risk.
@@ -734,10 +734,10 @@ Output (plain, TAB-separated):
 Exit: 0=symbols found, 1=empty file / not indexed, 2=usage, 3=server
 
 Examples:
-  cock codegraph file packages/feature/explorer/src/server/codeMap/types.ts
-  cock codegraph file packages/feature/explorer/src/server/codeMap/projectGraph/codeIndex.ts --json`,
+  cockpit codegraph file packages/feature/explorer/src/server/codeMap/types.ts
+  cockpit codegraph file packages/feature/explorer/src/server/codeMap/projectGraph/codeIndex.ts --json`,
 
-  coedit: `Usage: cock codegraph coedit <path> [--commits N=100] [--json]
+  coedit: `Usage: cockpit codegraph coedit <path> [--commits N=100] [--json]
 
 Purpose:  Files frequently edited together with <path> in git history.
           Captures "convention coupling" (parallel registries, double-
@@ -757,10 +757,10 @@ Output (plain, TAB-separated):
 Exit: 0=signal found, 1=no cooccurrence (totalCommits may be 0), 2=usage, 3=server
 
 Examples:
-  cock codegraph coedit packages/feature/explorer/src/server/codeMap/projectGraph/codeIndex.ts
-  cock codegraph coedit packages/feature/agent/src/server/lib/cgPrompt.ts --commits 500`,
+  cockpit codegraph coedit packages/feature/explorer/src/server/codeMap/projectGraph/codeIndex.ts
+  cockpit codegraph coedit packages/feature/agent/src/server/lib/cgPrompt.ts --commits 500`,
 
-  context: `Usage: cock codegraph context [--query Q] [--cursor C] [--open F1,F2,...]
+  context: `Usage: cockpit codegraph context [--query Q] [--cursor C] [--open F1,F2,...]
                               [--top N=15] [--json]
 
 Purpose:  Semantic retrieval. Combine free-text query, a cursor anchor,
@@ -790,11 +790,11 @@ Stderr:
 Exit: 0=results, 1=no results, 2=usage/no seeds, 3=server
 
 Examples:
-  cock codegraph context --query "spawn language server shutdown"
-  cock codegraph context --query "auth flow" --cursor src/auth.ts::login
-  cock codegraph context --cursor src/api.ts:42 --top 5`,
+  cockpit codegraph context --query "spawn language server shutdown"
+  cockpit codegraph context --query "auth flow" --cursor src/auth.ts::login
+  cockpit codegraph context --cursor src/api.ts:42 --top 5`,
 
-  related: `Usage: cock codegraph related <qname> [--file PATH] [--top N=10]
+  related: `Usage: cockpit codegraph related <qname> [--file PATH] [--top N=10]
                               [--include all|structural|coedit] [--json]
 
 Purpose:  Broader 1-hop relatedness than callers/callees alone. Combines
@@ -820,11 +820,11 @@ Stderr:
 Exit: 0=results, 1=no relatives, 2=usage, 3=server
 
 Examples:
-  cock codegraph related getCodeIndex --top 5
-  cock codegraph related NewRoutineModal --include structural
-  cock codegraph related GET --file packages/feature/explorer/src/server/api/projectGraph/risk.ts`,
+  cockpit codegraph related getCodeIndex --top 5
+  cockpit codegraph related NewRoutineModal --include structural
+  cockpit codegraph related GET --file packages/feature/explorer/src/server/api/projectGraph/risk.ts`,
 
-  risk: `Usage: cock codegraph risk <qname> [--file PATH] [--depth N=2]
+  risk: `Usage: cockpit codegraph risk <qname> [--file PATH] [--depth N=2]
                            [--top N=20] [--json]
 
 Purpose:  Risk-scored impact. Wraps 'impact' BFS and overlays
@@ -855,11 +855,11 @@ Stderr:
 Exit: 0=high-risk nodes returned, 1=qname not found, 2=usage, 3=server
 
 Examples:
-  cock codegraph risk searchIndex
-  cock codegraph risk getCodeIndex --depth 3 --top 10
-  cock codegraph risk validateCwd --json | jq '.suggestedTests[].filePath'`,
+  cockpit codegraph risk searchIndex
+  cockpit codegraph risk getCodeIndex --depth 3 --top 10
+  cockpit codegraph risk validateCwd --json | jq '.suggestedTests[].filePath'`,
 
-  affected: `Usage: cock codegraph affected <files…|--stdin>
+  affected: `Usage: cockpit codegraph affected <files…|--stdin>
                               [--depth N=10] [--filter GLOB]
                               [--as-cmd RUNNER] [--include-all] [--json]
 
@@ -905,11 +905,11 @@ Exit: 0=tests printed, 1=no tests affected (short-circuit in Makefile),
       2=usage, 3=server
 
 Examples:
-  git diff --name-only main | cock codegraph affected --stdin
-  git diff --name-only | cock codegraph affected --stdin --as-cmd jest
-  git diff --name-only | cock codegraph affected --stdin --as-cmd "vitest run"
-  cock codegraph affected src/auth.ts --filter "**/*.e2e.ts"
-  cock codegraph affected --stdin --json | jq '.byInput[] | {file, tests: .reachableTests | length}'`,
+  git diff --name-only main | cockpit codegraph affected --stdin
+  git diff --name-only | cockpit codegraph affected --stdin --as-cmd jest
+  git diff --name-only | cockpit codegraph affected --stdin --as-cmd "vitest run"
+  cockpit codegraph affected src/auth.ts --filter "**/*.e2e.ts"
+  cockpit codegraph affected --stdin --json | jq '.byInput[] | {file, tests: .reachableTests | length}'`,
 }; }
 
 function printSubHelp(name) {
@@ -921,5 +921,5 @@ function printSubHelp(name) {
   stdout.write(h + '\n');
 }
 
-// Exported for cock.mjs `await mod.done` pattern.
+// Exported for cockpit.mjs `await mod.done` pattern.
 export const done = Promise.resolve();

@@ -5,10 +5,10 @@
  *
  * 4 subcommands (read-only by design; write side belongs to Bash tool / web UI):
  *
- *   cock terminal list                     Discover terminals
- *   cock terminal <id> [--json]            Status / meta
- *   cock terminal <id> output [flags]      Read + filter + global lineno
- *   cock terminal <id> wait <mode> [flags] Wait for pattern / idle / exit
+ *   cockpit terminal list                     Discover terminals
+ *   cockpit terminal <id> [--json]            Status / meta
+ *   cockpit terminal <id> output [flags]      Read + filter + global lineno
+ *   cockpit terminal <id> wait <mode> [flags] Wait for pattern / idle / exit
  *
  * The CLI is a thin HTTP wrapper. All filtering, lineno bookkeeping, and
  * waiting happens on the server (see packages/feature/console/server/terminal).
@@ -123,7 +123,7 @@ function printTopHelp() {
 
 This CLI is READ-ONLY by design — the write side (stdin, signals, kill) is
 covered by the Bash tool (spawn your own process) or the Cockpit web UI
-(human types into the bubble). cock terminal only reads, filters, and waits.
+(human types into the bubble). cockpit terminal only reads, filters, and waits.
 
 Usage: cockpit terminal <id> <action> [flags]
        cockpit terminal list
@@ -168,7 +168,7 @@ async function cmdList(rest) {
   // Hint AI to the next step. The cheat sheet on the meta page is the real
   // entry point — list alone doesn't tell you how to act on any of these ids.
   console.log('');
-  console.log(`Next: cock terminal <shortId>   (status + full action cheat sheet)`);
+  console.log(`Next: cockpit terminal <shortId>   (status + full action cheat sheet)`);
 }
 
 /* ───────────────────────────────────────────────────────────────────────── */
@@ -193,8 +193,8 @@ function formatRelative(iso) {
 function actionsCheatSheet(id) {
   return `Available actions:
 
-  cock terminal ${id} output [flags]      Read buffered output (filter + global lineno)
-  cock terminal ${id} wait <mode> [flags] Block until pattern / idle / exit / timeout
+  cockpit terminal ${id} output [flags]      Read buffered output (filter + global lineno)
+  cockpit terminal ${id} wait <mode> [flags] Block until pattern / idle / exit / timeout
 
 Output — read mode (pick one, default = entire buffer):
   --since <N>         Continue from global line number N (cursor from previous call).
@@ -231,22 +231,22 @@ Wait exit codes: 0=condition met, 124=timeout (GNU convention), 2=bad usage, 1=o
 
 Common workflows:
   # Find error candidates with global line numbers
-  cock terminal ${id} output --grep error -i
+  cockpit terminal ${id} output --grep error -i
 
   # Inspect 15 lines around line 4920
-  cock terminal ${id} output --around 4920 --context 15
+  cockpit terminal ${id} output --around 4920 --context 15
 
   # Incremental read — pass 'next' from previous call's stderr
-  cock terminal ${id} output --since 5100
+  cockpit terminal ${id} output --since 5100
 
   # Wait until build settles (3s idle)
-  cock terminal ${id} wait --idle 3 --timeout 60
+  cockpit terminal ${id} wait --idle 3 --timeout 60
 
   # Wait until dev server announces ready
-  cock terminal ${id} wait --pattern 'Ready in' --timeout 90 --print
+  cockpit terminal ${id} wait --pattern 'Ready in' --timeout 90 --print
 
   # Programmatic — both stdout/stderr fields available in one JSON
-  cock terminal ${id} output --tail 50 --json | jq .`;
+  cockpit terminal ${id} output --tail 50 --json | jq .`;
 }
 
 async function cmdMeta(id, rest) {
@@ -311,7 +311,7 @@ const OUTPUT_FLAG_SPEC = {
 };
 
 function printOutputHelp() {
-  console.log(`Usage: cock terminal <id> output [flags]
+  console.log(`Usage: cockpit terminal <id> output [flags]
 
 Read modes (pick one, default = entire buffer):
   --since <N>         Continue from global line number N (cursor)
@@ -434,7 +434,7 @@ const WAIT_FLAG_SPEC = {
 };
 
 function printWaitHelp() {
-  console.log(`Usage: cock terminal <id> wait [flags]
+  console.log(`Usage: cockpit terminal <id> wait [flags]
 
 Modes (exactly one):
   --pattern <regex>   Wait until output line matches regex
@@ -512,7 +512,7 @@ async function run() {
   const rest = args.slice(2);
 
   if (!action || action === '--help' || action === '-h' || action === '--json') {
-    // `cock terminal <id>` or `cock terminal <id> --json` → meta
+    // `cockpit terminal <id>` or `cockpit terminal <id> --json` → meta
     const extras = action ? [action, ...rest] : rest;
     await cmdMeta(id, extras);
     return;

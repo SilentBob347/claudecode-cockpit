@@ -13,7 +13,6 @@ CLI entry point selection (**default = prod**):
 - Switch to `cockpit-dev` (dev, port 3456) ONLY when the user explicitly signals dev mode, via one of:
   1. They write `cockpit-dev ...` directly in the task text.
   2. The first word after `/cc` is `dev` (e.g. `/cc dev terminal bmfb check the errors`).
-- `cock` is the prod-only short alias of `cockpit`; behaviour is identical. There is no short alias for dev.
 
 Examples below use `cockpit`; only swap in `cockpit-dev` when one of the two dev signals above is present.
 

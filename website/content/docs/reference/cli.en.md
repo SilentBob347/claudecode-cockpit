@@ -1,26 +1,23 @@
-The OpenCockpit CLI is a thin layer over the running Cockpit server's HTTP API. Two binaries are installed by `npm install -g @surething/cockpit`: **`cockpit`** (canonical name) and **`cock`** (short alias) — identical. The server itself runs continuously; sub-commands speak HTTP to `localhost:3457` to inspect or drive what's open in your panels.
+The OpenCockpit CLI is a thin layer over the running Cockpit server's HTTP API. A single binary is installed by `npm install -g @surething/cockpit`: **`cockpit`**. The server itself runs continuously; sub-commands speak HTTP to `localhost:3457` to inspect or drive what's open in your panels.
 
 | Command | Purpose |
 |---|---|
-| [`cockpit`](#cockpit-and-cock) | Start the server (the main entry point) |
+| [`cockpit`](#cockpit) | Start the server (the main entry point) |
 | [`cockpit browser`](#cockpit-browser) | Drive a Browser bubble — navigate, click, evaluate JS, capture network |
 | [`cockpit terminal`](#cockpit-terminal) | Read a Terminal bubble's output (read-only; no stdin) |
 | [`cockpit codegraph`](#cockpit-codegraph) | Query the project-wide code index from a shell |
 | [`cockpit connection`](#cockpit-connection) | List all bubbles (terminal + browser) with their titles |
 | [`cockpit update`](#cockpit-update) | Upgrade to the latest version |
 
-## cockpit and cock
+## cockpit
 
-The `cockpit` binary is the main entry point. Its short alias is `cock` — both are installed when you `npm install -g @surething/cockpit`.
+The `cockpit` binary is the main entry point, installed by `npm install -g @surething/cockpit`.
 
 ### Usage
 
 ```text
 cockpit [path] [options]
-cock    [path] [options]
 ```
-
-The two commands are identical; pick whichever you prefer to type.
 
 ### Common forms
 
@@ -73,7 +70,7 @@ Cockpit listens on port **3457** (dev mode: **3456**). Override per-run with `--
 COCKPIT_PORT=4000 cockpit
 ```
 
-The `--port` flag wins when both are set. (`<data-dir>/server.json` is written by the running server to record the live pid/port for the `cock` sub-commands and the single-instance guard — it is **not** read back to choose the port, so editing it by hand has no effect.)
+The `--port` flag wins when both are set. (`<data-dir>/server.json` is written by the running server to record the live pid/port for the `cockpit` sub-commands and the single-instance guard — it is **not** read back to choose the port, so editing it by hand has no effect.)
 
 ### Sub-commands
 
@@ -112,7 +109,7 @@ Equivalent to `npm install -g @surething/cockpit@latest`. See [`cockpit update`]
 | Variable | Effect |
 |---|---|
 | `COCKPIT_HOME` | Data directory. Defaults to `~/.cockpit`. Point it elsewhere to isolate an instance's data — sessions, scheduled tasks, terminal history, settings, skills — e.g. run a dev instance beside prod without sharing data. Accepts `~`, relative, or absolute paths. |
-| `COCKPIT_PORT` | Server port (same as `--port`); also read by the `cock` sub-commands and `/cg` snippets. |
+| `COCKPIT_PORT` | Server port (same as `--port`); also read by the `cockpit` sub-commands and `/cg` snippets. |
 | `PORT` | Fallback when `COCKPIT_PORT` is unset. |
 | `COCKPIT_HOST` | Bind host. Default `127.0.0.1` (local only); set `0.0.0.0` to expose on the LAN / in a cloud sandbox. |
 | `COCKPIT_TOKEN` | Shared access token (same as `--token`). When set, remote HTTP/WS requests must present it (cookie / `Authorization: Bearer` / `?token=`); loopback requests stay exempt. Unset = no auth (fully open). See [below](#shared-token-access-gate). |
@@ -182,7 +179,7 @@ Keep the tunnel's original `Host` header. If it is rewritten to `localhost`, the
 
 ## cockpit browser
 
-`cockpit browser <id> <action>` (or `cock browser` for the short form) drives a Browser bubble in your running Cockpit instance from outside — from the AI in a chat, from a shell script, from CI, from anywhere.
+`cockpit browser <id> <action>` (or `cockpit browser` for the short form) drives a Browser bubble in your running Cockpit instance from outside — from the AI in a chat, from a shell script, from CI, from anywhere.
 
 The `<id>` is the short ID badge from the Browser bubble's title bar. Click the badge to register the bubble and copy a starter command to your clipboard.
 
@@ -192,34 +189,34 @@ The CLI is designed for **AI-driven E2E**: every command has an actionable error
 
 ```bash
 # Diagnose where the AI is currently parked (cheap, never blocks)
-cock browser xa7k2 health
-cock browser xa7k2 status
+cockpit browser xa7k2 health
+cockpit browser xa7k2 status
 
 # Find and interact (selector-first; refs go stale on re-render)
-cock browser xa7k2 snapshot --filter 'role=button' --include-hidden-text
-cock browser xa7k2 click --text "Sign in"
-cock browser xa7k2 click --selector 'button[type="submit"]'
-cock browser xa7k2 fill --selector 'input[name="email"]' --value "user@example.com"
-cock browser xa7k2 submit --form-selector 'form#login'
+cockpit browser xa7k2 snapshot --filter 'role=button' --include-hidden-text
+cockpit browser xa7k2 click --text "Sign in"
+cockpit browser xa7k2 click --selector 'button[type="submit"]'
+cockpit browser xa7k2 fill --selector 'input[name="email"]' --value "user@example.com"
+cockpit browser xa7k2 submit --form-selector 'form#login'
 
 # Probe the backend (inherits page auth)
-cock browser xa7k2 fetch /api/users/me
-cock browser xa7k2 fetch /api/items --method POST --body '{"name":"hello"}'
-cock browser xa7k2 fetch /api/items --json '$.data[0].id'
+cockpit browser xa7k2 fetch /api/users/me
+cockpit browser xa7k2 fetch /api/items --method POST --body '{"name":"hello"}'
+cockpit browser xa7k2 fetch /api/items --json '$.data[0].id'
 
 # act → wait → assert (atomic E2E)
-cock browser xa7k2 click --text "Save"
-cock browser xa7k2 wait --network-idle --quiet-ms 500
-cock browser xa7k2 assert --selector '[role="status"]' --text "Saved"
-cock browser xa7k2 assert --fetch /api/items --jsonpath '$.count' --equals 5
+cockpit browser xa7k2 click --text "Save"
+cockpit browser xa7k2 wait --network-idle --quiet-ms 500
+cockpit browser xa7k2 assert --selector '[role="status"]' --text "Saved"
+cockpit browser xa7k2 assert --fetch /api/items --jsonpath '$.count' --equals 5
 
 # Test isolation
-cock browser xa7k2 reset --cookies --storage --reload
-cock browser xa7k2 set --type cookie --name token --value abc123 --path /
+cockpit browser xa7k2 reset --cookies --storage --reload
+cockpit browser xa7k2 set --type cookie --name token --value abc123 --path /
 
 # Run arbitrary JS (escape hatch — prefer fetch/click-by-selector when possible)
-cock browser xa7k2 evaluate "document.title"
-cock browser xa7k2 evaluate --all-frames "await fetch('/api/x').then(r=>r.json())"
+cockpit browser xa7k2 evaluate "document.title"
+cockpit browser xa7k2 evaluate --all-frames "await fetch('/api/x').then(r=>r.json())"
 ```
 
 ### Full action list
@@ -361,7 +358,7 @@ Warnings (silent-failure detection, cookie not accepted, etc.) go to **stderr**.
 
 ### Exit codes
 
-`0` on success, non-zero on failure (stale ref, network error, assertion failure, no matching element, etc.). See the [main CLI page](#cockpit-and-cock) for the full exit code list.
+`0` on success, non-zero on failure (stale ref, network error, assertion failure, no matching element, etc.). See the [main CLI page](#cockpit) for the full exit code list.
 
 ### When NOT to use this CLI
 
@@ -371,9 +368,9 @@ Warnings (silent-failure detection, cookie not accepted, etc.) go to **stderr**.
 
 ## cockpit terminal
 
-`cockpit terminal <id> <action>` (or `cock terminal`) **reads** from a Terminal bubble in your running Cockpit — pulls the buffered output or waits for a running command to settle.
+`cockpit terminal <id> <action>` (or `cockpit terminal`) **reads** from a Terminal bubble in your running Cockpit — pulls the buffered output or waits for a running command to settle.
 
-> Note: the terminal CLI is intentionally **read-only**. There is **no `stdin`** and **no `follow`** (live streaming). The code comment says: "read-only by design; the write side belongs to the Bash tool / web UI." For interactive control, drive the bubble inside Cockpit's UI, or use a Browser bubble + `cock browser` for automation.
+> Note: the terminal CLI is intentionally **read-only**. There is **no `stdin`** and **no `follow`** (live streaming). The code comment says: "read-only by design; the write side belongs to the Bash tool / web UI." For interactive control, drive the bubble inside Cockpit's UI, or use a Browser bubble + `cockpit browser` for automation.
 
 The `<id>` is the short ID badge from the Terminal bubble's title bar. Click the badge to register the bubble and copy a starter command to your clipboard.
 
@@ -389,24 +386,24 @@ The `<id>` is the short ID badge from the Terminal bubble's title bar. Click the
 
 ```bash
 # Find your bubbles
-cock terminal list
+cockpit terminal list
 
 # Snapshot what's on screen now
-cock terminal xy789 output
+cockpit terminal xy789 output
 
 # Wait for npm run build to finish
-cock terminal xy789 wait
+cockpit terminal xy789 wait
 
 # Then look at the result
-cock terminal xy789 output | tail -50
+cockpit terminal xy789 output | tail -50
 ```
 
 ### When to use this
 
 Main patterns:
 
-- **AI reads what your shell is doing through the bubble.** Run `npm run dev` in a Terminal bubble. Hand `cock terminal <id>` to the AI in chat — it can `output` for recent logs and `wait` for a build to settle.
-- **CI / scripts observe a long-running command from outside.** A launcher script kicks off `npm run dev` in a Cockpit terminal; another script periodically runs `cock terminal <id> output` to scrape logs and assert.
+- **AI reads what your shell is doing through the bubble.** Run `npm run dev` in a Terminal bubble. Hand `cockpit terminal <id>` to the AI in chat — it can `output` for recent logs and `wait` for a build to settle.
+- **CI / scripts observe a long-running command from outside.** A launcher script kicks off `npm run dev` in a Cockpit terminal; another script periodically runs `cockpit terminal <id> output` to scrape logs and assert.
 
 ### Limits
 
@@ -489,43 +486,43 @@ Designed so warnings don't break shell pipelines:
 | `0` | Output produced |
 | `1` | Empty result (no callers, no tests, no hits) — short-circuits shell pipelines |
 | `2` | Argument or 4xx server error |
-| `3` | Cockpit server not reachable. Start it with `cock <project-path>`. |
+| `3` | Cockpit server not reachable. Start it with `cockpit <project-path>`. |
 
 ### Prerequisites
 
 The CLI hits `http://localhost:3457` by default (the **same port** as the main Cockpit server — not a separate codegraph port). The host is always loopback (the CLI and server are always co-located); only the port is overridable:
 
 ```bash
-COCKPIT_PORT=… cock codegraph …
+COCKPIT_PORT=… cockpit codegraph …
 ```
 
 ### Examples
 
 ```bash
-cock codegraph search getCodeIndex
+cockpit codegraph search getCodeIndex
 ```
 
 ```bash
-cock codegraph related getCodeIndex --top 5
+cockpit codegraph related getCodeIndex --top 5
 ```
 
 ```bash
-cock codegraph risk searchIndex --depth 2
+cockpit codegraph risk searchIndex --depth 2
 ```
 
 ```bash
 # Newline-separated test paths for whatever changed:
-git diff --name-only | cock codegraph affected --stdin
+git diff --name-only | cockpit codegraph affected --stdin
 ```
 
 ```bash
 # Drive jest directly with the affected tests:
-git diff --name-only | cock codegraph affected --stdin --as-cmd jest
+git diff --name-only | cockpit codegraph affected --stdin --as-cmd jest
 ```
 
 ```bash
 # Same idea for vitest:
-git diff --name-only | cock codegraph affected --stdin --as-cmd "vitest run"
+git diff --name-only | cockpit codegraph affected --stdin --as-cmd "vitest run"
 ```
 
 ### See also
@@ -586,7 +583,7 @@ Array of:
 | `0` | Bubbles found |
 | `1` | No bubbles (after filters) |
 | `2` | Usage / argument error |
-| `3` | Cockpit server unreachable. Start it with `cock <project-path>`. |
+| `3` | Cockpit server unreachable. Start it with `cockpit <project-path>`. |
 
 ### Examples
 

@@ -88,7 +88,7 @@ framework boot. See `MODULES.md` for the dependency rules.
   `scripts/build-html-lib.mjs` on every `predev` / `prebuild`
 - `/chrome-extension/` - Chrome extension (Manifest V3, independent
   sub-project)
-- `/bin/` - CLI entry points (`cock.mjs`, `postinstall.mjs`)
+- `/bin/` - CLI entry points (`cockpit.mjs`, `postinstall.mjs`)
 
 ## HTML Apps Runtime
 
@@ -161,7 +161,6 @@ npm run build    # Build for production
 npm run setup    # Build + npm link
 npm run lint     # Run ESLint
 cockpit          # Start production server on port 3457 (prefer this — primary entry)
-cock             # Same as `cockpit`; prod-only short alias
 cockpit-dev      # Start dev server on port 3456 (dev only; no short alias)
 cockpit -v       # Show version
 ```

@@ -19,7 +19,7 @@ import path from 'node:path';
 /**
  * Absolute path to the bundled tree-sitter WASMs.
  * `process.cwd()` is the project root for both `npm run dev` and the
- * production `cock` CLI (server.mjs / bin/cock.mjs both start from project root).
+ * production `cockpit` CLI (server.mjs / bin/cockpit.mjs both start from project root).
  * If a deployment scenario violates this assumption we'll need a fallback.
  */
 const WASM_DIR = path.join(process.cwd(), 'public', 'tree-sitter');

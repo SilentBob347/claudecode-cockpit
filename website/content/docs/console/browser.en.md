@@ -10,7 +10,7 @@ https://example.com
 
 The bubble shows the live page in an embedded view. When maximised (`Cmd+M`), the header from left to right:
 
-- **🌐 Short-ID badge** — clicking registers the bubble for CLI control and copies `cock browser <id>` (or `cockpit-dev browser <id>` in dev) to your clipboard. Paste into the Agent panel and the AI can now drive this exact tab.
+- **🌐 Short-ID badge** — clicking registers the bubble for CLI control and copies `cockpit browser <id>` (or `cockpit-dev browser <id>` in dev) to your clipboard. Paste into the Agent panel and the AI can now drive this exact tab.
 - **🔄 Loading spinner** — visible while the page is loading.
 - **Current URL** — editable; press Enter to navigate.
 - **📋 Copy URL** — copies the current URL to your clipboard.
@@ -36,16 +36,16 @@ If you find yourself fighting CORS, login redirects, or "can't load in iframe" e
 
 This is the killer feature. Navigate the page yourself to get it into the right state — log in, click the right tab, fill some context — then:
 
-1. Click the short-ID badge in the header. It copies `cock browser <id>` to your clipboard.
+1. Click the short-ID badge in the header. It copies `cockpit browser <id>` to your clipboard.
 2. Switch to the **Agent** panel and paste into chat with whatever you want the AI to do, e.g.:
 
 ```text
-The bubble at `cock browser xa7k2` shows our admin dashboard.
+The bubble at `cockpit browser xa7k2` shows our admin dashboard.
 Capture the network request when I click "Refresh metrics" and tell me
 why it's taking 4 seconds.
 ```
 
-The AI can now run `cock browser xa7k2 …` commands to inspect and drive the page — read the DOM, capture network traffic, execute JavaScript, take screenshots, click and type.
+The AI can now run `cockpit browser xa7k2 …` commands to inspect and drive the page — read the DOM, capture network traffic, execute JavaScript, take screenshots, click and type.
 
 See the [CLI Reference for `cockpit browser`](/en/docs/reference/cli/#cockpit-browser) for the full action list.
 
@@ -61,9 +61,9 @@ See the [CLI Reference for `cockpit browser`](/en/docs/reference/cli/#cockpit-br
 
 - **Page won't load / shows blank** — most often a site that refuses to be iframed (CSP `frame-ancestors` or `X-Frame-Options`). Install the [Chrome extension](/en/docs/console/chrome-extension/#install) and it usually works.
 - **Login expired** — without the extension, the iframe doesn't share cookies with your normal Chrome. Either log in inside the iframe or install the extension.
-- **AI can't drive the bubble** — make sure you clicked the short-ID badge first; the bubble has to be registered for `cock browser <id>` to find it.
+- **AI can't drive the bubble** — make sure you clicked the short-ID badge first; the bubble has to be registered for `cockpit browser <id>` to find it.
 
 ## Next
 
 - [Chrome Extension](/en/docs/console/chrome-extension/#what-it-does) — what it adds
-- [CLI Reference → cockpit browser](/en/docs/reference/cli/#cockpit-browser) — what the AI can do with `cock browser <id>`
+- [CLI Reference → cockpit browser](/en/docs/reference/cli/#cockpit-browser) — what the AI can do with `cockpit browser <id>`

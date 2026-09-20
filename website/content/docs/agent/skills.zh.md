@@ -100,12 +100,12 @@ AI 会：
 适用:代码改完了,要让 AI **真的**去跑一下、看 UI、抓网络、确认行为对了。
 
 ```text
-/cc 终端: cock terminal abc123
-    浏览器: cock browser xyz789
+/cc 终端: cockpit terminal abc123
+    浏览器: cockpit browser xyz789
     测一下 chat 输入框的发送功能,验证消息能正确入库且 UI 实时刷新
 ```
 
-`/cc` 把 AI 切到**操作 Cockpit CLI** 的模式 —— 把 `cock terminal <id> output` 拿终端输出、`cock browser <id> click/type/network` 等驱动浏览器气泡当作主要工具。你需要在 prompt 里给它**短 ID**(在终端 / 浏览器气泡头部点徽章拿到)指明要驱动哪些气泡。
+`/cc` 把 AI 切到**操作 Cockpit CLI** 的模式 —— 把 `cockpit terminal <id> output` 拿终端输出、`cockpit browser <id> click/type/network` 等驱动浏览器气泡当作主要工具。你需要在 prompt 里给它**短 ID**(在终端 / 浏览器气泡头部点徽章拿到)指明要驱动哪些气泡。
 
 通常配合 [`/go`](#go-落地改动) 使用 —— `/go` 写完代码,`/cc` 验证它确实活在用户那一侧。详细 walkthrough 见[快速开始](/zh/docs/get-started/quickstart/#端到端验证-console-拉起服务-cc-测试)。
 
