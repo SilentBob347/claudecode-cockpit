@@ -10,7 +10,12 @@ import { ChatProvider, FileDiffViewer } from '@cockpit/feature-agent';
 import type { ToolCallInfo } from '@cockpit/feature-agent';
 import { nextFileDiffRequest, type FileDiffRequest } from './fileDiffRequest';
 import { paneLayout, paneClass, maximizedTabId, isChatSurfaceActive, type PaneLayout } from './paneLayout';
-import { SwipeableViewContainer, SwipeableContent, type ViewType } from '@cockpit/shared-ui';
+import {
+  SwipeableViewContainer,
+  SwipeableContent,
+  type ViewType,
+  type OverscrollState,
+} from '@cockpit/shared-ui';
 import { PanelPortalProvider } from '@cockpit/shared-ui';
 import { useTabState } from './useTabState';
 import { TabManagerTopBar } from './TabManagerTopBar';
@@ -166,6 +171,18 @@ function PaneShell({
     </div>
   );
 }
+
+/**
+ * How far the diff column trails a dismiss gesture, as a fraction of the
+ * gesture's own travel. Under 1 on purpose: the action fires at 20% of the
+ * window width, and moving the column the full distance would read as a drag
+ * the user must complete rather than a hint that letting go will act.
+ */
+const DIFF_DISMISS_DAMPING = 0.5;
+
+/** Fly-out duration. Long enough to read as motion, short enough not to sit
+ *  between the user and the thing they just asked to get rid of. */
+const DIFF_DISMISS_MS = 140;
 
 export function TabManager({ initialCwd, initialSessionId, initialBlank, initialView, initialFile }: TabManagerProps) {
   const { t } = useTranslation();
@@ -587,18 +604,62 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
   // threw it away. Spending it on "close the thing covering this column" adds
   // a gesture without taking one: nothing else could have fired.
   //
-  // Scoped by `target` on purpose. The overscroll is reported for the whole
-  // agent view, chat pane included, and closing a column the user was not
-  // touching would read as the app losing it. Note this only fires once the
-  // diff's own code pane has run out of horizontal room (the switcher hands
-  // off to scrollable content first), which is what makes the gesture mean
-  // the same thing over a wide diff as over a narrow one.
-  const handleOverscroll = useCallback((direction: 'left' | 'right', target: Element | null) => {
-    if (direction !== 'right') return;
-    // A hit here already proves the column is mounted — no separate open check.
-    if (!target?.closest('[data-diff-column]')) return;
-    handleCloseFileDiff();
+  // The column is animated by writing to its style directly, NOT through
+  // state. This runs once per wheel tick, and all three views plus every chat
+  // tab stay mounted, so a render per frame would drag the whole tree through
+  // reconciliation for an animation that touches one element (CLAUDE.md,
+  // React Performance Conventions).
+  //
+  // Scoped to the column by `contains`: the overscroll is reported for the
+  // whole agent view, chat pane included, and dismissing a column the user
+  // was not touching would read as the app losing it. Note the gesture only
+  // reaches us once the diff's own code pane has run out of horizontal room —
+  // the switcher hands off to scrollable content first — which is what makes
+  // it behave the same over a wide diff as over a narrow one.
+  const diffColumnRef = useRef<HTMLDivElement>(null);
+  const handleOverscroll = useCallback((s: OverscrollState) => {
+    const el = diffColumnRef.current;
+    if (!el) return;
+    // Positive offset = rightward. Anything else is not this gesture.
+    const ours = s.offset > 0 && s.target !== null && el.contains(s.target);
+
+    if (s.phase === 'move') {
+      if (!ours) return;
+      // Damped: the action fires at 20% of the window, and tracking the
+      // gesture 1:1 over that distance would read as a drag the user has to
+      // complete rather than a hint that letting go will do something.
+      const travel = Math.min(s.offset * DIFF_DISMISS_DAMPING, el.offsetWidth);
+      el.style.transition = 'none';
+      el.style.transform = `translateX(${travel}px)`;
+      return;
+    }
+
+    // Release. Settling runs even when the gesture was not ours, so a stray
+    // move can never leave the column parked off-centre.
+    if (ours && s.triggered) {
+      el.style.transition = `transform ${DIFF_DISMISS_MS}ms ease-out, opacity ${DIFF_DISMISS_MS}ms ease-out`;
+      el.style.transform = 'translateX(100%)';
+      el.style.opacity = '0';
+      // Unmount after it has left, so the column is never seen to vanish
+      // mid-flight. Worst case the timer outlives the column and closing a
+      // already-closed diff is a no-op.
+      window.setTimeout(handleCloseFileDiff, DIFF_DISMISS_MS);
+    } else {
+      el.style.transition = 'transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+      el.style.transform = '';
+    }
   }, [handleCloseFileDiff]);
+
+  // Clear any leftover gesture styling when a different diff opens. React
+  // reuses the column element, so a fly-out that somehow did not unmount
+  // would otherwise hand the next diff an invisible, off-screen column.
+  useEffect(() => {
+    const el = diffColumnRef.current;
+    if (!el) return;
+    el.style.transition = '';
+    el.style.transform = '';
+    el.style.opacity = '';
+  }, [fileDiffRequest]);
 
   // The tab bar's layout button restores your layout before it toggles it.
   // With a diff column open the split is only hidden, so pressing the button
@@ -791,6 +852,7 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
                         position is not what decides sides here (see paneClass). */}
                     {fileDiffRequest && (
                       <div
+                        ref={diffColumnRef}
                         // Scope marker for the swipe-right-to-dismiss gesture
                         // (see handleOverscroll).
                         data-diff-column=""

@@ -43,11 +43,28 @@ interface SwipeableViewContainerProps {
    * Handing it out lets the host spend it on an edge action (dismissing an
    * overlay column, say) without teaching this component what that action is.
    *
-   * `target` is the element the gesture was over, so a host can scope the
-   * action to one region. Return value is advisory; the switcher has already
-   * decided not to move either way.
+   * Reported on EVERY wheel tick, not just at the end, so the host can draw
+   * the gesture as it happens. That is also why this is a callback rather than
+   * context or state: a gesture animation redrawn through React would re-render
+   * all three (permanently mounted) views per frame. Hosts are expected to
+   * write to the DOM directly here.
    */
-  onOverscroll?: (direction: 'left' | 'right', target: Element | null) => void;
+  onOverscroll?: (state: OverscrollState) => void;
+}
+
+/** One tick of a swipe that ran past the first or last view. */
+export interface OverscrollState {
+  /**
+   * Signed pixels past the edge, accumulated over the gesture. Positive is a
+   * rightward swipe (toward a previous view); negative is leftward.
+   */
+  readonly offset: number;
+  /** `move` while the gesture is live; `release` once the wheel goes idle. */
+  readonly phase: 'move' | 'release';
+  /** On `release`: whether the gesture passed the action threshold. */
+  readonly triggered: boolean;
+  /** Element under the gesture, so a host can scope the action to a region. */
+  readonly target: Element | null;
 }
 
 /**
@@ -177,15 +194,26 @@ export function SwipeableViewContainer({ activeView, onViewChange, children, onO
         const canGoLeft = currentIndex > 0;
         const canGoRight = currentIndex < maxPage;
 
+        let overscrolled = false;
         if (!canGoLeft && newOffset > 0) {
           overscrollRef.current += newOffset;
           overscrollTargetRef.current = target;
           newOffset = 0;
+          overscrolled = true;
         }
         if (!canGoRight && newOffset < 0) {
           overscrollRef.current += newOffset;
           overscrollTargetRef.current = target;
           newOffset = 0;
+          overscrolled = true;
+        }
+        if (overscrolled) {
+          onOverscrollRef.current?.({
+            offset: overscrollRef.current,
+            phase: 'move',
+            triggered: false,
+            target,
+          });
         }
 
         // Clamp offset to one page width maximum
@@ -226,9 +254,18 @@ export function SwipeableViewContainer({ activeView, onViewChange, children, onO
 
           if (newPage !== currentIndex) {
             onViewChange(VIEWS[newPage]);
-          } else if (Math.abs(finalOverscroll) > pageWidth * OVERSCROLL_THRESHOLD) {
-            // Positive offset = content pushed right = a rightward swipe.
-            onOverscrollRef.current?.(finalOverscroll > 0 ? 'right' : 'left', overscrollTarget);
+          }
+          // Reported whether or not it passed the threshold: a host drawing
+          // the gesture needs the release either way, to fire its action or to
+          // spring back. Skipped when the view moved — the switcher's own
+          // transition owns the frame at that point.
+          if (newPage === currentIndex && finalOverscroll !== 0) {
+            onOverscrollRef.current?.({
+              offset: finalOverscroll,
+              phase: 'release',
+              triggered: Math.abs(finalOverscroll) > pageWidth * OVERSCROLL_THRESHOLD,
+              target: overscrollTarget,
+            });
           }
 
           setTimeout(() => {

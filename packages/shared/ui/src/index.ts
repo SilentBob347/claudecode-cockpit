@@ -73,6 +73,7 @@ export {
   ViewSwitcherBar,
   useSwipeContext,
   type ViewType,
+  type OverscrollState,
 } from './SwipeableViewContainer';
 export { SwipeablePages } from './SwipeablePages';
 
