@@ -95,6 +95,12 @@ export interface FileDiff {
   isImage?: boolean;
   oldRev?: string | null;
   newRev?: string | null;
+  /**
+   * Branch compare in worktree mode: the "after" side is the file on disk, not
+   * a revision, so `newRev` is null and this says the working-tree copy exists
+   * (i.e. the file was not deleted) and should be loaded from the files API.
+   */
+  newWorktree?: boolean;
 }
 
 // Tab type

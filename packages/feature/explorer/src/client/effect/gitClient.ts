@@ -125,14 +125,24 @@ export const fetchCommitDiff = (
 }
 
 /**
- * Branch diff: HEAD vs base. Returns FileDiff when `file` is provided, otherwise a file list.
+ * Which end of the branch forms the "after" side:
+ *   - `head`     — committed work only (the GitHub "Files changed" diff)
+ *   - `worktree` — committed + staged + unstaged + untracked
+ * Both anchor the "before" side at the merge base. See branch-diff.ts.
+ */
+export type BranchDiffMode = "head" | "worktree"
+
+/**
+ * Branch diff: base vs HEAD or vs the working tree, depending on `mode`.
+ * Returns FileDiff when `file` is provided, otherwise a file list.
  */
 export const fetchBranchDiff = (
   cwd: string,
   base: string,
-  file?: string
+  file?: string,
+  mode: BranchDiffMode = "worktree"
 ): Effect.Effect<BranchDiffResponse, AppError> => {
-  const url = `/api/git/branch-diff?cwd=${encodeURIComponent(cwd)}&base=${encodeURIComponent(base)}${file ? `&file=${encodeURIComponent(file)}` : ""}`
+  const url = `/api/git/branch-diff?cwd=${encodeURIComponent(cwd)}&base=${encodeURIComponent(base)}&mode=${mode}${file ? `&file=${encodeURIComponent(file)}` : ""}`
   return httpGet<BranchDiffResponse>(url)
 }
 

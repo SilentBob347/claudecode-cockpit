@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { ImageDiffView } from './ImageDiffView';
 
 /**
@@ -22,17 +23,25 @@ export interface GitImageDiffViewProps {
   oldRev?: string | null;
   /** Revision holding the "after" blob; null when the file was deleted. */
   newRev?: string | null;
+  /**
+   * Self-resolving "after" side, taking precedence over `newRev`. Branch
+   * compare in worktree mode passes a `<FileImagePreview/>` here: that side is
+   * the file on disk, which has no revision to address and needs the stat/ETag
+   * round-trip to avoid serving a stale cached image after an edit.
+   */
+  newNode?: ReactNode;
 }
 
 const blobUrl = (cwd: string, rev: string, filePath: string) =>
   `/api/git/blob?cwd=${encodeURIComponent(cwd)}&rev=${encodeURIComponent(rev)}&file=${encodeURIComponent(filePath)}`;
 
-export function GitImageDiffView({ cwd, filePath, oldRev, newRev }: GitImageDiffViewProps) {
+export function GitImageDiffView({ cwd, filePath, oldRev, newRev, newNode }: GitImageDiffViewProps) {
   return (
     <ImageDiffView
       filePath={filePath}
       oldSrc={oldRev ? blobUrl(cwd, oldRev, filePath) : null}
       newSrc={newRev ? blobUrl(cwd, newRev, filePath) : null}
+      newNode={newNode}
     />
   );
 }

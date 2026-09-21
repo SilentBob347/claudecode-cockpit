@@ -10,6 +10,7 @@ import {
   fetchCommits,
   fetchCommitDiff,
   fetchBranchDiff,
+  type BranchDiffMode,
 } from '../effect/gitClient';
 
 interface UseGitHistoryOptions {
@@ -49,6 +50,21 @@ export function useGitHistory({ cwd, addToRecentFiles }: UseGitHistoryOptions) {
   const [compareFileDiff, setCompareFileDiff] = useState<FileDiff | null>(null);
   const [isLoadingCompareFiles, setIsLoadingCompareFiles] = useState(false);
   const [isLoadingCompareDiff, setIsLoadingCompareDiff] = useState(false);
+  /** 'worktree' (default) folds uncommitted work into the comparison; 'head'
+   *  is the committed-only, GitHub-style diff. See branch-diff.ts. */
+  const [compareDiffMode, setCompareDiffModeState] = useState<BranchDiffMode>('worktree');
+
+  // The file watcher refreshes the comparison through a callback created once
+  // (deps [cwd]), so every value it needs is read from a ref rather than closed
+  // over — otherwise a refresh would keep using the first render's base branch.
+  const compareModeRef = useRef(compareMode);
+  compareModeRef.current = compareMode;
+  const compareDiffModeRef = useRef(compareDiffMode);
+  compareDiffModeRef.current = compareDiffMode;
+  const compareBaseBranchRef = useRef(compareBaseBranch);
+  compareBaseBranchRef.current = compareBaseBranch;
+  const compareSelectedFileRef = useRef(compareSelectedFile);
+  compareSelectedFileRef.current = compareSelectedFile;
 
   const loadBranches = useCallback(() => {
     setIsLoadingBranches(true);
@@ -189,12 +205,12 @@ export function useGitHistory({ cwd, addToRecentFiles }: UseGitHistoryOptions) {
   }, []);
 
   // Load the file list for branch comparison
-  const loadCompareFiles = useCallback((baseBranch: string) => {
+  const loadCompareFiles = useCallback((baseBranch: string, mode?: BranchDiffMode) => {
     setIsLoadingCompareFiles(true);
     setCompareSelectedFile(null);
     setCompareFileDiff(null);
     BrowserRuntime.runPromise(
-      fetchBranchDiff(cwd, baseBranch).pipe(
+      fetchBranchDiff(cwd, baseBranch, undefined, mode ?? compareDiffModeRef.current).pipe(
         Effect.match({
           onSuccess: (data) => {
             const fileList = (data.files || []) as FileChange[];
@@ -217,7 +233,7 @@ export function useGitHistory({ cwd, addToRecentFiles }: UseGitHistoryOptions) {
     addToRecentFiles(file.path);
     setIsLoadingCompareDiff(true);
     BrowserRuntime.runPromise(
-      fetchBranchDiff(cwd, compareBaseBranch, file.path).pipe(
+      fetchBranchDiff(cwd, compareBaseBranch, file.path, compareDiffModeRef.current).pipe(
         Effect.match({
           onSuccess: (data) => setCompareFileDiff(data as unknown as FileDiff),
           onFailure: (err) => {
@@ -227,6 +243,65 @@ export function useGitHistory({ cwd, addToRecentFiles }: UseGitHistoryOptions) {
       )
     ).finally(() => setIsLoadingCompareDiff(false));
   }, [cwd, compareBaseBranch, addToRecentFiles]);
+
+  /**
+   * Re-pull the comparison after the working tree changed. Only meaningful in
+   * worktree mode — a committed-only diff cannot move while nobody commits,
+   * and refetching it on every keystroke-triggered save would be pure noise.
+   *
+   * Unlike loadCompareFiles this keeps the current selection: the user is
+   * usually staring at one file's diff while an agent edits it, and dropping
+   * the selection on every save would make that pane unusable.
+   */
+  const refreshCompare = useCallback(() => {
+    if (!compareModeRef.current) return;
+    if (compareDiffModeRef.current !== 'worktree') return;
+    const baseBranch = compareBaseBranchRef.current;
+    if (!baseBranch) return;
+
+    BrowserRuntime.runPromise(
+      fetchBranchDiff(cwd, baseBranch, undefined, 'worktree').pipe(
+        Effect.match({
+          onSuccess: (data) => {
+            const fileList = (data.files || []) as FileChange[];
+            setCompareFiles(fileList);
+            const tree = buildGitFileTree(fileList);
+            setCompareFileTree(tree);
+            // Newly appeared directories start expanded; anything the user
+            // collapsed by hand is left alone.
+            setCompareExpandedPaths(prev => {
+              const next = new Set(prev);
+              for (const dir of collectGitTreeDirPaths(tree)) {
+                if (!prev.has(dir)) next.add(dir);
+              }
+              return next;
+            });
+          },
+          onFailure: (err) => console.error(err),
+        })
+      )
+    );
+
+    const selected = compareSelectedFileRef.current;
+    if (!selected) return;
+    BrowserRuntime.runPromise(
+      fetchBranchDiff(cwd, baseBranch, selected.path, 'worktree').pipe(
+        Effect.match({
+          onSuccess: (data) => setCompareFileDiff(data as unknown as FileDiff),
+          onFailure: (err) => console.error(err),
+        })
+      )
+    );
+  }, [cwd]);
+
+  /** Switch the comparison between committed-only and working-tree. */
+  const setCompareDiffMode = useCallback((mode: BranchDiffMode) => {
+    if (compareDiffModeRef.current === mode) return;
+    compareDiffModeRef.current = mode;
+    setCompareDiffModeState(mode);
+    const baseBranch = compareBaseBranchRef.current;
+    if (compareModeRef.current && baseBranch) loadCompareFiles(baseBranch, mode);
+  }, [loadCompareFiles]);
 
   // Toggle directory expansion in comparison mode
   const handleCompareToggle = useCallback((path: string) => {
@@ -314,5 +389,8 @@ export function useGitHistory({ cwd, addToRecentFiles }: UseGitHistoryOptions) {
     handleSelectCompareFile,
     handleCompareToggle,
     loadCompareFiles,
+    compareDiffMode,
+    setCompareDiffMode,
+    refreshCompare,
   };
 }

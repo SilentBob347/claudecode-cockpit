@@ -262,13 +262,18 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
     return { additions, deletions };
   }, [gitHistory.compareFiles]);
 
-  // Compare mode has no commit pair to name — the head side is hardcoded to
-  // HEAD server-side (branch-diff.ts). Spell the range two-dot: the route runs
-  // `git diff <base> HEAD`, so `<base>..HEAD` matches it and `<base>...HEAD`
-  // (merge-base, a real PR diff) would hand the agent a different diff.
+  // Compare mode has no commit pair to name, so the prompt has to spell the
+  // range the route actually ran (branch-diff.ts) — otherwise the agent reads a
+  // different diff than the one on screen. In head mode that is three-dot
+  // `<base>...HEAD` (merge-base). In worktree mode there is no git range at
+  // all, since the after side is unstaged/untracked files, so the prompt
+  // describes it in words instead.
   const handleExplainCompare = useCallback((path: string) => {
-    aiBridge?.sendMessage(t('explain.compareFileMessage', { base: gitHistory.compareBaseBranch, path }));
-  }, [aiBridge, t, gitHistory.compareBaseBranch]);
+    aiBridge?.sendMessage(t(
+      gitHistory.compareDiffMode === 'worktree' ? 'explain.compareFileWorktreeMessage' : 'explain.compareFileMessage',
+      { base: gitHistory.compareBaseBranch, path }
+    ));
+  }, [aiBridge, t, gitHistory.compareBaseBranch, gitHistory.compareDiffMode]);
 
   // ========== Vi Mode Callbacks ==========
   /** True when the next entry into edit mode was caused by a vi normal-mode
@@ -907,6 +912,10 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
         );
         // Refresh the currently viewed diff
         gitStatus.refreshDiff();
+        // Branch compare in worktree mode moves with every save, so it has to
+        // follow the watcher too — otherwise the list goes stale the moment an
+        // agent touches a file, which is precisely when it is being read.
+        gitHistory.refreshCompare();
 
         if (hasGitChange) {
           // Sync BranchSelector when the branch changes
@@ -1302,8 +1311,27 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                         <svg className="w-4 h-4 text-muted-foreground flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
-                        <span className="truncate">{gitHistory.branches?.current || 'HEAD'}</span>
-                        <span className="text-xs text-green-11 flex-shrink-0">HEAD</span>
+                        <span className="flex-1 min-w-0 truncate">{gitHistory.branches?.current || 'HEAD'}</span>
+                        {/* Which end of the branch is the "after" side. A
+                            segmented control rather than a popover on purpose:
+                            this pane is one of three side-by-side panels, and a
+                            two-option menu is not worth the positioning cost. */}
+                        <div className="flex flex-shrink-0 items-center rounded border border-border overflow-hidden text-xs">
+                          {(['head', 'worktree'] as const).map((scope) => (
+                            <button
+                              key={scope}
+                              onClick={() => gitHistory.setCompareDiffMode(scope)}
+                              className={`px-1.5 py-0.5 transition-colors ${
+                                gitHistory.compareDiffMode === scope
+                                  ? 'bg-brand text-white'
+                                  : 'text-muted-foreground hover:text-foreground hover:bg-hover'
+                              }`}
+                              title={t(scope === 'head' ? 'fileBrowser.compareScopeHeadHint' : 'fileBrowser.compareScopeWorktreeHint')}
+                            >
+                              {t(scope === 'head' ? 'fileBrowser.compareScopeHead' : 'fileBrowser.compareScopeWorktree')}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <button
                         onClick={() => gitHistory.toggleCompareMode(false)}
@@ -1719,12 +1747,25 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                     {gitHistory.isLoadingCompareFiles ? (
                       <div className="p-4 text-center text-muted-foreground text-sm">{t('fileBrowser.loadingDiff')}</div>
                     ) : gitHistory.compareFiles.length === 0 ? (
-                      <div className="p-4 text-center text-muted-foreground text-sm">{t('fileBrowser.noDiffFiles')}</div>
+                      <div className="p-4 text-center text-muted-foreground text-sm">
+                        <div>{t('fileBrowser.noDiffFiles')}</div>
+                        {/* An empty committed-only diff is the normal state of a
+                            branch whose work is not committed yet — say where
+                            that work is instead of implying there is none. */}
+                        {gitHistory.compareDiffMode === 'head' && (
+                          <button
+                            onClick={() => gitHistory.setCompareDiffMode('worktree')}
+                            className="mt-2 text-xs text-brand hover:underline"
+                          >
+                            {t('fileBrowser.noDiffFilesHeadHint')}
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <>
                         <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
                           <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                            {t('fileBrowser.nFilesChanged', { count: gitHistory.compareFiles.length, branch: gitHistory.compareBaseBranch })}
+                            {t(gitHistory.compareDiffMode === 'worktree' ? 'fileBrowser.nFilesChangedWorktree' : 'fileBrowser.nFilesChanged', { count: gitHistory.compareFiles.length, branch: gitHistory.compareBaseBranch })}
                           </span>
                           <span className="flex flex-shrink-0 items-center gap-1.5 text-xs tabular-nums">
                             <span className="text-green-11">+{compareTotals.additions}</span>
@@ -2456,8 +2497,15 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                             (gitHistory.compareFileDiff.isNew ? null : gitHistory.compareBaseBranch)
                           }
                           newRev={
-                            gitHistory.compareFileDiff.newRev ??
-                            (gitHistory.compareFileDiff.isDeleted ? null : 'HEAD')
+                            gitHistory.compareDiffMode === 'worktree'
+                              ? null
+                              : gitHistory.compareFileDiff.newRev ??
+                                (gitHistory.compareFileDiff.isDeleted ? null : 'HEAD')
+                          }
+                          newNode={
+                            gitHistory.compareFileDiff.newWorktree ? (
+                              <FileImagePreview cwd={cwd} path={gitHistory.compareFileDiff.filePath} />
+                            ) : undefined
                           }
                         />
                       ) : compareViewMode === 'unified' ? (
