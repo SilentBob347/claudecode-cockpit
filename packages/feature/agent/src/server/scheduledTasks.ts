@@ -50,6 +50,15 @@ export interface ScheduledTask {
 const MAX_CONSECUTIVE_FAILURES = 3;
 
 /**
+ * How long a single scheduled run may stay active before it is stopped and recorded as a
+ * failure. It is a runaway guard, not a latency budget: research-style tasks (multi-source
+ * scans, nested sub-agents) legitimately run well past half an hour, and cutting one short
+ * loses the whole turn's work. Kept generous for that reason — the deadline exists so a
+ * wedged run cannot hold the reentrancy guard and block every later round forever.
+ */
+const RUN_DEADLINE_MS = 60 * 60 * 1000;
+
+/**
  * How late a `once` task may still be fired after the moment it was due.
  *
  * Timers are plain setTimeout and do not survive the process, so a `once` task whose
@@ -157,6 +166,25 @@ export function getNextCronTime(cronExpr: string, after: Date = new Date()): num
 // ============================================
 
 /**
+ * Bind a task to the session id its run revealed, and persist it immediately.
+ *
+ * `key` stays valid across the rekey: rekeyRun ADDS the real session id as an alias
+ * without dropping the provisional runId, so reading by the original key keeps working
+ * both while the run is live and through the post-run grace window.
+ *
+ * @returns true once the id is known — the caller polls until then.
+ */
+async function rebindTaskSession(task: ScheduledTask, key: string): Promise<boolean> {
+  const newSessionId = getRunSessionId(key);
+  if (!newSessionId) return false; // engine has not announced it yet
+  if (newSessionId === task.sessionId) return true; // nothing to move
+  console.warn(`[ScheduledTask] task ${task.id}: rebound session ${task.sessionId} → ${newSessionId}`);
+  task.sessionId = newSessionId;
+  await scheduledTaskManager.persistSessionRebind(task.id, newSessionId);
+  return true;
+}
+
+/**
  * Single execution path for ALL engines (claude / ollama / codex / kimi /
  * deepseek / glm). Since #10 ws-converge every engine's /api/chat[/<engine>] route only STARTS a
  * detached run and returns its runKey as JSON (no SSE to drain); the route owns session
@@ -204,11 +232,28 @@ const dispatchEngineMessageEff = (
         throw new Error(`${engine} dispatch rejected (${outcome.status}): ${outcome.error}`);
       }
       const key = outcome.runKey;
-      // The run is detached from this request; wait for it to finish (registry → not running).
-      const deadline = Date.now() + 30 * 60 * 1000;
+      // Fresh session: bind as soon as the engine reveals its real id (ctx.rekey →
+      // rekeyRun, seconds into the run), not when the turn ends. The end of the run is up
+      // to RUN_DEADLINE_MS away, and for that whole window the task points at a session
+      // that no longer exists: the panel opens an empty transcript while the real one
+      // streams under another id, a crash or restart mid-run loses the id for good, and an
+      // outcome-gated rebind skipped it entirely on timeout/error — so the next round
+      // started yet another from-scratch session against the same dead id. Self-
+      // reinforcing, since a from-scratch run carries no context and is the one most
+      // likely to hit the deadline again.
+      //
+      // Persisting is part of binding (see persistSessionRebind): mutating `task` alone
+      // would only reach disk in fireTask's post-run saveToDisk — exactly the moment this
+      // is trying not to depend on.
+      let rebound = !startFresh; // a plain resume already points at the right session
+      const deadline = Date.now() + RUN_DEADLINE_MS;
       while (isRunActive(key) && Date.now() < deadline) {
+        if (!rebound) rebound = await rebindTaskSession(task, key);
         await new Promise((r) => setTimeout(r, 500));
       }
+      // A run short enough to finish inside the first tick never got polled above; the
+      // registry keeps the id readable through the post-run grace window.
+      if (!rebound) await rebindTaskSession(task, key);
       // Map the run's TERMINAL state to a result instead of always reporting success — the
       // poll above only knows "not running", which conflates idle/error/timeout. The run
       // lingers in the registry for a grace window after markRunIdle, so the status read
@@ -217,7 +262,7 @@ const dispatchEngineMessageEff = (
         // Deadline hit while still running: abort the detached run instead of leaving a
         // zombie that keeps writing the jsonl and tripping the next round's 409 guard.
         requestStop(key);
-        throw new Error(`${engine} run timed out after 30m (session ${task.sessionId})`);
+        throw new Error(`${engine} run timed out after ${RUN_DEADLINE_MS / 60000}m (session ${task.sessionId})`);
       }
       const snap = getRunSnapshot(key);
       if (!snap || snap.status === 'error') {
@@ -225,17 +270,6 @@ const dispatchEngineMessageEff = (
         // before we read it (impossible inside the 60s grace, since the poll exits within
         // 500ms of markRunIdle). Treat as failure — fail closed, not a silent success.
         throw new Error(`${engine} run failed (session ${task.sessionId})`);
-      }
-      // Fresh session: the engine revealed a new id mid-run (rekeyRun). Read it from the
-      // run (key is the provisional runId, still a valid alias) and write it back so the
-      // task resumes the new session next time instead of failing on the gone one. Mutates
-      // task in place — fireTask/fireTaskManual persist it in their saveToDisk that follows.
-      if (startFresh) {
-        const newSessionId = getRunSessionId(key);
-        if (newSessionId && newSessionId !== task.sessionId) {
-          console.warn(`[ScheduledTask] task ${task.id}: rebound session ${task.sessionId} → ${newSessionId}`);
-          task.sessionId = newSessionId;
-        }
       }
       return true as const;
     },
@@ -647,6 +681,28 @@ class ScheduledTaskManager {
     } finally {
       this.firing.delete(id);
     }
+  }
+
+  /**
+   * Persist a mid-run session rebind (see rebindTaskSession) without waiting for the run
+   * to end. The in-memory entry and the `task` object the dispatcher mutated are the same
+   * reference in the normal path; the assignment here is what makes this correct for any
+   * other caller too.
+   */
+  async persistSessionRebind(id: string, sessionId: string): Promise<void> {
+    const t = this.tasks.find(x => x.id === id);
+    // Unmanaged task — a direct sendChatMessageEff call (tests), or one deleted mid-run.
+    // saveToDisk writes the in-memory set as the WHOLE file, so a miss must not write:
+    // it would publish a task list this manager never owned.
+    if (!t) return;
+    t.sessionId = sessionId;
+    await this.saveToDisk();
+    // Tell the board, which otherwise only refetches on mount or on a user action and
+    // would keep the dead id — and its preview pane keeps polling the transcript of a
+    // session that does not exist — for the entire run. The channel already exists end to
+    // end (server.mjs broadcasts `task-fired` on this callback; ProjectSidebar reloads the
+    // list on it); it just used to fire once, after the run.
+    this.onTaskFired?.(t);
   }
 
   /**
