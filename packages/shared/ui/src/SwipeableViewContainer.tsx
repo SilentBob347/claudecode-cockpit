@@ -33,20 +33,44 @@ interface SwipeableViewContainerProps {
   activeView: ViewType;
   onViewChange: (view: ViewType) => void;
   children: ReactNode; // ViewSwitcherBar + content area
+  /**
+   * A horizontal swipe that ran PAST the first or last view — the travel the
+   * switcher itself has nothing to do with, because there is no neighbouring
+   * view that way.
+   *
+   * That travel used to be discarded silently, which made "swipe right on the
+   * agent view" a gesture the user could perform but nothing could observe.
+   * Handing it out lets the host spend it on an edge action (dismissing an
+   * overlay column, say) without teaching this component what that action is.
+   *
+   * `target` is the element the gesture was over, so a host can scope the
+   * action to one region. Return value is advisory; the switcher has already
+   * decided not to move either way.
+   */
+  onOverscroll?: (direction: 'left' | 'right', target: Element | null) => void;
 }
 
 /**
- * Check whether an element can scroll horizontally
+ * Can an ancestor still absorb a horizontal scroll going THIS way?
+ *
+ * The direction is the whole point. Asking only "does this element overflow"
+ * hands the gesture to a pane that is already pinned against the edge the
+ * user is pushing toward, so a long-line code pane swallowed every horizontal
+ * swipe forever — the view switcher was unreachable over wide diffs, and any
+ * edge action behind it could never fire. Once a pane has no room left in the
+ * direction of travel it stops being the right owner of the gesture, exactly
+ * like nested vertical scrollers handing off at their end stops.
+ *
+ * `deltaX > 0` is a scroll toward the right (content moves left).
  */
-function canScrollHorizontally(element: Element | null): boolean {
+function canScrollHorizontally(element: Element | null, deltaX: number): boolean {
   while (element) {
     const style = window.getComputedStyle(element);
     const overflowX = style.overflowX;
 
     // Check if horizontal scrolling is enabled
     if (overflowX === 'auto' || overflowX === 'scroll') {
-      // Check if there is actual horizontal scroll space
-      if (element.scrollWidth > element.clientWidth) {
+      if (hasScrollRoom(element.scrollLeft, element.scrollWidth, element.clientWidth, deltaX)) {
         return true;
       }
     }
@@ -56,10 +80,44 @@ function canScrollHorizontally(element: Element | null): boolean {
   return false;
 }
 
-export function SwipeableViewContainer({ activeView, onViewChange, children }: SwipeableViewContainerProps) {
+/**
+ * Does a scroller with these metrics have room left in the direction of travel?
+ *
+ * Split out of the DOM walk above so the part that is easy to get backwards —
+ * which end `deltaX > 0` consumes — is testable without a browser. Getting it
+ * inverted does not crash or look obviously wrong; it just silently swaps
+ * which edge hands the gesture on, so it is worth pinning down.
+ */
+export function hasScrollRoom(
+  scrollLeft: number,
+  scrollWidth: number,
+  clientWidth: number,
+  deltaX: number
+): boolean {
+  const max = scrollWidth - clientWidth;
+  // Sub-pixel layouts leave a fractional gap on panes that are visually
+  // flush; 1px of slack keeps those from counting as scrollable.
+  if (max <= 1) return false;
+  // deltaX > 0 scrolls toward the right, consuming the room to the right of
+  // the current position; a leftward scroll consumes scrollLeft itself.
+  const room = deltaX > 0 ? max - scrollLeft : scrollLeft;
+  return room > 1;
+}
+
+export function SwipeableViewContainer({ activeView, onViewChange, children, onOverscroll }: SwipeableViewContainerProps) {
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTransitioningRef = useRef(false);
   const dragOffsetRef = useRef(0);
+  // Travel past the first / last view. Kept apart from dragOffsetRef because
+  // the track must NOT move for it — there is no neighbouring view to reveal,
+  // so shifting would just expose background. It is accumulated purely to
+  // give the edge gesture a magnitude that can be thresholded.
+  const overscrollRef = useRef(0);
+  const overscrollTargetRef = useRef<Element | null>(null);
+  // Ref indirection: the handler is bound once per view change, and a host
+  // passing an inline arrow must not force a rebind on every render.
+  const onOverscrollRef = useRef(onOverscroll);
+  useEffect(() => { onOverscrollRef.current = onOverscroll; }, [onOverscroll]);
 
   // Live offset in pixels, used to trigger re-renders
   const [dragOffsetPx, setDragOffsetPx] = useState(0);
@@ -74,10 +132,16 @@ export function SwipeableViewContainer({ activeView, onViewChange, children }: S
   const RELEASE_TIMEOUT = 60;      // Release detection timeout (60ms)
   const SWITCH_THRESHOLD = 0.12;   // Switch threshold (lower = easier to switch)
   const TRANSITION_DURATION = 80;  // Animation duration (80ms)
+  // Deliberately well above SWITCH_THRESHOLD. An edge action is not a view
+  // switch you can undo by swiping back — it fires on a surface the user was
+  // reading, so it should take a decisive push, not a stray flick from a
+  // trackpad's diagonal drift.
+  const OVERSCROLL_THRESHOLD = 0.2;
 
   // Reset dragOffset when activeView changes
   useEffect(() => {
     dragOffsetRef.current = 0;
+    overscrollRef.current = 0;
     queueMicrotask(() => setDragOffsetPx(0));
   }, [activeView]);
 
@@ -90,7 +154,7 @@ export function SwipeableViewContainer({ activeView, onViewChange, children }: S
         const target = e.target as Element;
         if (target.tagName === 'IFRAME') return;
         // Smart check: if the target is inside a horizontally-scrollable element, let it handle the scroll
-        if (canScrollHorizontally(target)) {
+        if (canScrollHorizontally(target, e.deltaX)) {
           // Let the element handle horizontal scrolling itself
           return;
         }
@@ -114,9 +178,13 @@ export function SwipeableViewContainer({ activeView, onViewChange, children }: S
         const canGoRight = currentIndex < maxPage;
 
         if (!canGoLeft && newOffset > 0) {
+          overscrollRef.current += newOffset;
+          overscrollTargetRef.current = target;
           newOffset = 0;
         }
         if (!canGoRight && newOffset < 0) {
+          overscrollRef.current += newOffset;
+          overscrollTargetRef.current = target;
           newOffset = 0;
         }
 
@@ -136,6 +204,10 @@ export function SwipeableViewContainer({ activeView, onViewChange, children }: S
         // Set timeout to detect release
         wheelTimeoutRef.current = setTimeout(() => {
           const finalOffset = dragOffsetRef.current;
+          const finalOverscroll = overscrollRef.current;
+          const overscrollTarget = overscrollTargetRef.current;
+          overscrollRef.current = 0;
+          overscrollTargetRef.current = null;
           const threshold = pageWidth * SWITCH_THRESHOLD;
 
           setIsDragging(false);
@@ -154,6 +226,9 @@ export function SwipeableViewContainer({ activeView, onViewChange, children }: S
 
           if (newPage !== currentIndex) {
             onViewChange(VIEWS[newPage]);
+          } else if (Math.abs(finalOverscroll) > pageWidth * OVERSCROLL_THRESHOLD) {
+            // Positive offset = content pushed right = a rightward swipe.
+            onOverscrollRef.current?.(finalOverscroll > 0 ? 'right' : 'left', overscrollTarget);
           }
 
           setTimeout(() => {

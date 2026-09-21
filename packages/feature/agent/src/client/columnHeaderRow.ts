@@ -22,8 +22,9 @@
  *
  * Horizontal padding is deliberately NOT here — it is the one thing the two
  * bars must NOT share. The chat side reserves `pr-8` for the close-this-column
- * ✕ that PaneShell floats over it; the diff column has no such ✕, and copying
- * the reservation would inset its own ✕ from an edge nothing is covering.
+ * ✕ that PaneShell floats over it; the diff column has nothing floated over
+ * its right edge (its own controls sit at the LEFT, macOS-window style), so
+ * copying the reservation would inset a side nothing is covering.
  */
 export const COLUMN_HEADER_ROW =
   'flex items-center gap-2 h-9 flex-shrink-0 border-b border-border';

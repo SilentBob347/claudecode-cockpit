@@ -580,6 +580,26 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
   // Closing is just this: `diffFullscreen` follows on the effect above.
   const handleCloseFileDiff = useCallback(() => setFileDiffRequest(null), []);
 
+  // Swipe right on the diff column to dismiss it.
+  //
+  // The agent view is the FIRST of the three, so a rightward swipe there has
+  // never had a view to go to — the switcher clamped that travel to zero and
+  // threw it away. Spending it on "close the thing covering this column" adds
+  // a gesture without taking one: nothing else could have fired.
+  //
+  // Scoped by `target` on purpose. The overscroll is reported for the whole
+  // agent view, chat pane included, and closing a column the user was not
+  // touching would read as the app losing it. Note this only fires once the
+  // diff's own code pane has run out of horizontal room (the switcher hands
+  // off to scrollable content first), which is what makes the gesture mean
+  // the same thing over a wide diff as over a narrow one.
+  const handleOverscroll = useCallback((direction: 'left' | 'right', target: Element | null) => {
+    if (direction !== 'right') return;
+    // A hit here already proves the column is mounted — no separate open check.
+    if (!target?.closest('[data-diff-column]')) return;
+    handleCloseFileDiff();
+  }, [handleCloseFileDiff]);
+
   // The tab bar's layout button restores your layout before it toggles it.
   // With a diff column open the split is only hidden, so pressing the button
   // would otherwise rearrange something off screen and look like it did
@@ -646,7 +666,7 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
 
   return (
     <ChatProvider>
-    <SwipeableViewContainer activeView={activeView} onViewChange={handleViewChange}>
+    <SwipeableViewContainer activeView={activeView} onViewChange={handleViewChange} onOverscroll={handleOverscroll}>
     <div className="flex h-screen bg-card">
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -771,6 +791,9 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
                         position is not what decides sides here (see paneClass). */}
                     {fileDiffRequest && (
                       <div
+                        // Scope marker for the swipe-right-to-dismiss gesture
+                        // (see handleOverscroll).
+                        data-diff-column=""
                         className={
                           diffFullscreen
                             // Covers the pane row and nothing above it: the tab

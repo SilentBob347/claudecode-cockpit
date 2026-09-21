@@ -87,6 +87,24 @@ export interface SnapshotDiff {
   readonly truncated: boolean
 }
 
+/**
+ * Net diff across a RANGE of snapshot commits (`base..head`) — what the whole
+ * turn changed, rather than what one tool call changed.
+ *
+ * Deliberately not the sum of the per-commit diffs: a file edited five times
+ * appears once, and a file created then deleted within the range does not
+ * appear at all. That collapsing is the point of the aggregate view.
+ */
+export interface SnapshotRangeDiff {
+  /** Resolved "before" revision; null when the range starts at the empty tree. */
+  readonly base: string | null
+  /** The newest commit in the range (its metadata, not its own diff). */
+  readonly head: SnapshotCommit
+  readonly files: ReadonlyArray<SnapshotFileDiff>
+  /** True when the range changed more files than the response cap. */
+  readonly truncated: boolean
+}
+
 export interface SnapshotRecordResult {
   readonly committed: boolean
   readonly hash?: string
@@ -131,6 +149,19 @@ export interface SnapshotService {
     cwd: string,
     commitHash: string
   ) => Effect.Effect<SnapshotDiff, AppError | ValidationError | NotFoundError>
+  /**
+   * Net file-level diff between two snapshot revisions (`base..head`).
+   *
+   * `base` is null for a range that starts before anything existed (the
+   * oldest commit in the range is parentless), in which case the empty tree
+   * is used. Callers pass the PARENT of the oldest commit they want included
+   * — passing that commit itself would omit its own changes.
+   */
+  readonly rangeDiff: (
+    cwd: string,
+    base: string | null,
+    head: string
+  ) => Effect.Effect<SnapshotRangeDiff, AppError | ValidationError | NotFoundError>
   /**
    * Raw bytes of an IMAGE blob at a snapshot revision — what makes the image
    * side of a snapshot diff renderable. The project's own repo has no such

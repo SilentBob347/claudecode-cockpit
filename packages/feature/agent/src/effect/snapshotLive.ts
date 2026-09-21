@@ -37,6 +37,7 @@ import {
   type SnapshotTrigger,
   type SnapshotCommit,
   type SnapshotDiff,
+  type SnapshotRangeDiff,
   type SnapshotFileDiff,
   type SnapshotRecordResult,
 } from "@cockpit/effect-services"
@@ -852,6 +853,91 @@ const blobImpl = (
     return new Uint8Array(bytes)
   }).pipe(Effect.withSpan("snapshot.blob", { attributes: { cwd, rev } }))
 
+/**
+ * File-level diff between two resolved revisions, shared by `diff` (one
+ * commit vs its parent) and `rangeDiff` (a whole turn's net change). Both
+ * need the identical name-status + numstat + content-materialization pass;
+ * only how they pick `base`/`head` differs.
+ */
+const collectRangeFiles = (
+  repoDir: string,
+  cwd: string,
+  base: string,
+  head: string
+): Effect.Effect<{ files: SnapshotFileDiff[]; truncated: boolean }, AppError> =>
+  Effect.gen(function* () {
+    // name-status + numstat in one pass each; numstat flags binaries ("-").
+    const nameStatus = yield* runGitOk(repoDir, cwd, [
+      "diff-tree", "-r", "-z", "--no-renames", "--name-status", base, head,
+    ])
+    const numstat = yield* runGitOk(repoDir, cwd, [
+      "diff-tree", "-r", "-z", "--no-renames", "--numstat", base, head,
+    ])
+    const binarySet = new Set<string>()
+    const lineStats = new Map<string, { additions: number; deletions: number }>()
+    {
+      const parts = numstat.stdout.split("\0").filter(Boolean)
+      for (const row of parts) {
+        const m = /^(\S+)\t(\S+)\t([^]*)$/.exec(row)
+        if (!m) continue
+        if (m[1] === "-" || m[2] === "-") binarySet.add(m[3])
+        else lineStats.set(m[3], { additions: Number(m[1]) || 0, deletions: Number(m[2]) || 0 })
+      }
+    }
+
+    const tokens = nameStatus.stdout.split("\0").filter(Boolean)
+    const files: SnapshotFileDiff[] = []
+    for (let i = 0; i + 1 < tokens.length && files.length < MAX_DIFF_FILES; i += 2) {
+      const st = tokens[i]
+      const path = tokens[i + 1]
+      const status = st === "A" ? "added" : st === "D" ? "deleted" : "modified"
+      const binary = binarySet.has(path)
+      let oldContent: string | null = null
+      let newContent: string | null = null
+      if (!binary) {
+        if (status !== "added") oldContent = yield* showFile(repoDir, cwd, base, path)
+        if (status !== "deleted") newContent = yield* showFile(repoDir, cwd, head, path)
+        // Over-cap contents are dropped (client renders a "not viewable" state).
+        if (
+          (oldContent?.length ?? 0) > MAX_DIFF_CONTENT_BYTES ||
+          (newContent?.length ?? 0) > MAX_DIFF_CONTENT_BYTES
+        ) {
+          oldContent = null
+          newContent = null
+        }
+      }
+      const stats = lineStats.get(path)
+      // Images never travel as content (utf-8 decoding a PNG yields mojibake,
+      // which is why `binary` nulls the contents above). Instead hand the
+      // client the two revisions that hold the blob; it renders an <img> per
+      // side against /api/snapshots/blob. Gated on `binary` as well as the
+      // extension, so an .svg keeps its line diff.
+      const isImage = binary && isImagePath(path)
+      files.push({
+        path,
+        status,
+        binary,
+        additions: stats?.additions ?? 0,
+        deletions: stats?.deletions ?? 0,
+        oldContent,
+        newContent,
+        ...(isImage
+          ? {
+              isImage: true,
+              // A range rooted at the empty tree reports every path as
+              // "added", so EMPTY_TREE is never handed out as a revision the
+              // client could ask for.
+              oldRev: status === "added" ? null : base,
+              newRev: status === "deleted" ? null : head,
+            }
+          : {}),
+      })
+    }
+
+    // More name-status tokens than files materialized → response is capped.
+    return { files, truncated: tokens.length / 2 > files.length }
+  })
+
 const diffImpl = (
   snapshotsRoot: string,
   cwd: string,
@@ -880,79 +966,58 @@ const diffImpl = (
       return yield* Effect.fail(new ValidationError({ field: "commit", reason: "commit not found" }))
     }
     const base = commit.parent ?? EMPTY_TREE
-
-    // name-status + numstat in one pass each; numstat flags binaries ("-").
-    const nameStatus = yield* runGitOk(repoDir, cwd, [
-      "diff-tree", "-r", "-z", "--no-renames", "--name-status", base, commit.hash,
-    ])
-    const numstat = yield* runGitOk(repoDir, cwd, [
-      "diff-tree", "-r", "-z", "--no-renames", "--numstat", base, commit.hash,
-    ])
-    const binarySet = new Set<string>()
-    const lineStats = new Map<string, { additions: number; deletions: number }>()
-    {
-      const parts = numstat.stdout.split("\0").filter(Boolean)
-      for (const row of parts) {
-        const m = /^(\S+)\t(\S+)\t([^]*)$/.exec(row)
-        if (!m) continue
-        if (m[1] === "-" || m[2] === "-") binarySet.add(m[3])
-        else lineStats.set(m[3], { additions: Number(m[1]) || 0, deletions: Number(m[2]) || 0 })
-      }
-    }
-
-    const tokens = nameStatus.stdout.split("\0").filter(Boolean)
-    const files: SnapshotFileDiff[] = []
-    for (let i = 0; i + 1 < tokens.length && files.length < MAX_DIFF_FILES; i += 2) {
-      const st = tokens[i]
-      const path = tokens[i + 1]
-      const status = st === "A" ? "added" : st === "D" ? "deleted" : "modified"
-      const binary = binarySet.has(path)
-      let oldContent: string | null = null
-      let newContent: string | null = null
-      if (!binary) {
-        if (status !== "added") oldContent = yield* showFile(repoDir, cwd, base, path)
-        if (status !== "deleted") newContent = yield* showFile(repoDir, cwd, commit.hash, path)
-        // Over-cap contents are dropped (client renders a "not viewable" state).
-        if (
-          (oldContent?.length ?? 0) > MAX_DIFF_CONTENT_BYTES ||
-          (newContent?.length ?? 0) > MAX_DIFF_CONTENT_BYTES
-        ) {
-          oldContent = null
-          newContent = null
-        }
-      }
-      const stats = lineStats.get(path)
-      // Images never travel as content (utf-8 decoding a PNG yields mojibake,
-      // which is why `binary` nulls the contents above). Instead hand the
-      // client the two revisions that hold the blob; it renders an <img> per
-      // side against /api/snapshots/blob. Gated on `binary` as well as the
-      // extension, so an .svg keeps its line diff.
-      const isImage = binary && isImagePath(path)
-      files.push({
-        path,
-        status,
-        binary,
-        additions: stats?.additions ?? 0,
-        deletions: stats?.deletions ?? 0,
-        oldContent,
-        newContent,
-        ...(isImage
-          ? {
-              isImage: true,
-              // A parentless day-root commit diffs against the empty tree, so
-              // every path comes back "added" — `base` is never handed out as
-              // a revision the client could ask for.
-              oldRev: status === "added" ? null : base,
-              newRev: status === "deleted" ? null : commit.hash,
-            }
-          : {}),
-      })
-    }
-
-    // More name-status tokens than files materialized → response is capped.
-    const truncated = tokens.length / 2 > files.length
+    const { files, truncated } = yield* collectRangeFiles(repoDir, cwd, base, commit.hash)
     return { commit, files, truncated } satisfies SnapshotDiff
   }).pipe(Effect.withSpan("snapshot.diff", { attributes: { cwd, commit: commitHash } }))
+
+/**
+ * Net diff of a whole range of snapshot commits — the aggregate view behind
+ * the chat diff viewer's 汇总 toggle.
+ *
+ * `base` is the PARENT of the oldest commit the caller wants included (null
+ * when that commit is parentless, i.e. the range starts from nothing). Handing
+ * in the oldest commit itself would silently drop its own changes, which is
+ * why the client resolves the parent rather than this function guessing.
+ */
+const rangeDiffImpl = (
+  snapshotsRoot: string,
+  cwd: string,
+  base: string | null,
+  head: string
+): Effect.Effect<SnapshotRangeDiff, AppError | ValidationError | NotFoundError> =>
+  Effect.gen(function* () {
+    if (base !== null && !/^[0-9a-f]{6,40}$/i.test(base)) {
+      return yield* Effect.fail(new ValidationError({ field: "base", reason: "invalid commit hash" }))
+    }
+    if (!/^[0-9a-f]{6,40}$/i.test(head)) {
+      return yield* Effect.fail(new ValidationError({ field: "head", reason: "invalid commit hash" }))
+    }
+    const repoDir = yield* resolveRepoDir(snapshotsRoot, cwd)
+    const repoExists = yield* fsTry("stat HEAD", () =>
+      stat(join(repoDir, "HEAD")).then(() => true)
+    ).pipe(Effect.orElseSucceed(() => false))
+    if (!repoExists) {
+      return yield* Effect.fail(new NotFoundError({ resource: "snapshot-repo", id: cwd }))
+    }
+
+    const log = yield* runGitOk(repoDir, cwd, [
+      "log",
+      "-1",
+      "--format=%x1e%H%x1f%P%x1f%ct%x1f%B",
+      head,
+    ])
+    const headCommit = commitFromLogRecord(log.stdout.split("\x1e").filter(Boolean)[0] ?? "")
+    if (!headCommit) {
+      return yield* Effect.fail(new ValidationError({ field: "head", reason: "commit not found" }))
+    }
+    const { files, truncated } = yield* collectRangeFiles(
+      repoDir,
+      cwd,
+      base ?? EMPTY_TREE,
+      headCommit.hash
+    )
+    return { base, head: headCommit, files, truncated } satisfies SnapshotRangeDiff
+  }).pipe(Effect.withSpan("snapshot.rangeDiff", { attributes: { cwd, base: base ?? "empty-tree", head } }))
 
 // ─────────────────────────────────────────────────────────
 // Cleanup (retention)
@@ -1126,6 +1191,8 @@ export const SnapshotServiceLive = Layer.scoped(
         sessionKey?: string,
       ) => listByToolIdsImpl(snapshotsRoot, cwd, toolIds, sessionKey),
       diff: (cwd: string, commitHash: string) => diffImpl(snapshotsRoot, cwd, commitHash),
+      rangeDiff: (cwd: string, base: string | null, head: string) =>
+        rangeDiffImpl(snapshotsRoot, cwd, base, head),
       blob: (cwd: string, rev: string, file: string) => blobImpl(snapshotsRoot, cwd, rev, file),
       cleanup,
     })

@@ -47,6 +47,14 @@ export interface SnapshotDiffDto {
   truncated?: boolean
 }
 
+/** Net diff across a range of commits (`base..head`) — the aggregate view. */
+export interface SnapshotRangeDiffDto {
+  base: string | null
+  head: SnapshotCommitDto
+  files: SnapshotFileDiffDto[]
+  truncated?: boolean
+}
+
 // ─────────────────────────────────────────────────────────
 // HTTP primitives (local copy — same pattern as agentClient.ts)
 // ─────────────────────────────────────────────────────────
@@ -99,4 +107,21 @@ export const loadSnapshotDiffsForToolIds = (
         { concurrency: 4 }
       )
     )
+  )
+
+/**
+ * Net diff between two snapshot revisions.
+ *
+ * `base` must be the PARENT of the oldest commit to include — passing that
+ * commit itself would drop its own changes from the aggregate.
+ */
+export const loadSnapshotRangeDiff = (
+  cwd: string,
+  base: string | null,
+  head: string
+): Effect.Effect<SnapshotRangeDiffDto, AppError> =>
+  httpJson<SnapshotRangeDiffDto>(
+    `/api/snapshots/range-diff?cwd=${encodeURIComponent(cwd)}&head=${encodeURIComponent(head)}${
+      base ? `&base=${encodeURIComponent(base)}` : ""
+    }`
   )

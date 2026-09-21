@@ -7,7 +7,7 @@ import { useEffectQuery } from '@cockpit/effect-react';
 import { Portal, blurActiveElement, ChangeClassChip, MenuContainerProvider } from '@cockpit/shared-ui';
 import { classifyPath, classifyFiles, type ChangeClass } from '@cockpit/shared-utils';
 import { COLUMN_HEADER_ROW } from './columnHeaderRow';
-import { X, PanelLeft, Wrench, Maximize, Minimize } from 'lucide-react';
+import { X, PanelLeft, Wrench, Maximize, Minimize, Layers } from 'lucide-react';
 // Tech debt: DiffView / GitFileTree are generic renderers used by both
 // file-browser and chat domains. Allowed by MODULES.md as transitional
 // reverse import (agent → explorer is a declared supporting subdomain).
@@ -27,7 +27,13 @@ import {
   formatAsHumanReadable,
   type GitFileNode,
 } from '@cockpit/feature-explorer';
-import { loadSnapshotDiffsForToolIds, type SnapshotDiffDto } from './effect/snapshotClient';
+import {
+  loadSnapshotDiffsForToolIds,
+  loadSnapshotRangeDiff,
+  type SnapshotDiffDto,
+  type SnapshotFileDiffDto,
+  type SnapshotRangeDiffDto,
+} from './effect/snapshotClient';
 import type { ToolCallInfo } from './types';
 import { isMutatingToolName } from '../shared/toolMutation';
 
@@ -68,6 +74,14 @@ interface CallFile {
 interface CallEntry {
   key: string;
   shortHash?: string;
+  /** Full snapshot commit hash — absent for legacy pseudo-calls. */
+  hash?: string;
+  /** Parent of this call's commit; null for a parentless day-root commit.
+   *  The aggregate view's `base` is the FIRST call's parent, never its own
+   *  hash — otherwise the first call's own changes drop out of the range. */
+  parent?: string | null;
+  /** Files the tool declared it would touch (empty for Bash & co.). */
+  declared?: string[];
   toolName: string;
   subject: string;
   /** Full display text when the snapshot commit subject was shortened. */
@@ -113,6 +127,34 @@ interface DiffViewerModalProps {
 // Data adapters
 // ============================================
 
+/**
+ * One snapshot file diff → the viewer's CallFile shape. Shared by the
+ * per-call and aggregate views so both render through the identical pipeline.
+ *
+ * `declared` null disables external-change attribution (see the aggregate
+ * view: a union of declared files is only meaningful when every call in the
+ * range declared its targets).
+ */
+function toCallFile(f: SnapshotFileDiffDto, declared: Set<string> | null): CallFile {
+  return {
+    path: f.path,
+    status: f.status,
+    additions: f.additions,
+    deletions: f.deletions,
+    old_string: f.oldContent ?? '',
+    new_string: f.newContent ?? '',
+    // An image is "unviewable" as TEXT but perfectly viewable as an image,
+    // so it must not fall into the not-viewable branch.
+    unviewable: !f.isImage && (f.binary || (f.oldContent === null && f.newContent === null)),
+    isImage: f.isImage,
+    oldRev: f.oldRev,
+    newRev: f.newRev,
+    // Attribution is best-effort: only meaningful when the tool declared
+    // target files (Edit/Write); Bash declares nothing → no marking.
+    external: declared !== null && declared.size > 0 && !declared.has(f.path),
+  };
+}
+
 /** Snapshot commits → call entries (one per commit, files carry real diffs). */
 function callsFromSnapshots(diffs: SnapshotDiffDto[]): CallEntry[] {
   return diffs.map((d) => {
@@ -124,28 +166,15 @@ function callsFromSnapshots(diffs: SnapshotDiffDto[]): CallEntry[] {
       // commits that HAVE a toolId; hash is a defensive fallback.)
       key: d.commit.toolId ?? d.commit.hash,
       shortHash: d.commit.hash.slice(0, 7),
+      hash: d.commit.hash,
+      parent: d.commit.parent,
+      declared: d.commit.toolFiles,
       toolName: d.commit.toolName ?? 'tool',
       subject: d.commit.subject,
       timestamp: d.commit.timestamp,
       truncated: d.truncated === true,
       changeClass: classifyFiles(d.files.map((f) => f.path)),
-      files: d.files.map((f) => ({
-        path: f.path,
-        status: f.status,
-        additions: f.additions,
-        deletions: f.deletions,
-        old_string: f.oldContent ?? '',
-        new_string: f.newContent ?? '',
-        // An image is "unviewable" as TEXT but perfectly viewable as an image,
-        // so it must not fall into the not-viewable branch.
-        unviewable: !f.isImage && (f.binary || (f.oldContent === null && f.newContent === null)),
-        isImage: f.isImage,
-        oldRev: f.oldRev,
-        newRev: f.newRev,
-        // Attribution is best-effort: only meaningful when the tool declared
-        // target files (Edit/Write); Bash declares nothing → no marking.
-        external: declared.size > 0 && !declared.has(f.path),
-      })),
+      files: d.files.map((f) => toCallFile(f, declared)),
     };
   });
 }
@@ -254,16 +283,20 @@ export function resolveDiffCalls(
  * carries line stats — i.e. legacy parameter-reconstructed calls, where we
  * show the file count only rather than a misleading +0 -0.
  */
-function callLineStats(call: CallEntry): { additions: number; deletions: number } | null {
+function fileLineStats(files: CallFile[]): { additions: number; deletions: number } | null {
   let hasStats = false;
   let additions = 0;
   let deletions = 0;
-  for (const f of call.files) {
+  for (const f of files) {
     if (f.additions !== undefined || f.deletions !== undefined) hasStats = true;
     additions += f.additions ?? 0;
     deletions += f.deletions ?? 0;
   }
   return hasStats ? { additions, deletions } : null;
+}
+
+function callLineStats(call: CallEntry): { additions: number; deletions: number } | null {
+  return fileLineStats(call.files);
 }
 
 /** Compact "+X -Y" line-stat badge (green adds / red dels). */
@@ -358,6 +391,56 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
     return callsFromToolParams(toolCalls, cwd);
   }, [snapshotsQ, toolCalls, cwd]);
 
+  // 汇总 — one net diff across every call instead of one call at a time.
+  // Pane-local like the density / view-mode toggles; opening the viewer always
+  // starts per-call, because "what did THIS call do" is the common question.
+  const [aggregate, setAggregate] = useState(false);
+
+  // Snapshot-backed calls, oldest first — the only ones a range can span
+  // (legacy pseudo-calls are rebuilt from tool parameters and have no commit).
+  const hashedCalls = useMemo(() => calls.filter((c) => c.hash), [calls]);
+  // base..head for the aggregate view. `base` is the OLDEST call's PARENT so
+  // that call's own changes are inside the range; null means the range starts
+  // at the empty tree (parentless day-root commit).
+  const range = useMemo(() => {
+    if (hashedCalls.length < 2) return null;
+    return {
+      base: hashedCalls[0].parent ?? null,
+      head: hashedCalls[hashedCalls.length - 1].hash as string,
+    };
+  }, [hashedCalls]);
+  // Shown from two calls up (aggregating a single call would just restate it),
+  // disabled when those calls carry no snapshots to diff between.
+  const canShowAggregate = Boolean(cwd) && calls.length >= 2;
+  const aggregateDisabled = range === null;
+  // A shrinking call list (message re-render / refetch) can invalidate the
+  // range while the aggregate view is open — fall back rather than strand it.
+  useEffect(() => {
+    if (aggregate && !range) setAggregate(false);
+  }, [aggregate, range]);
+
+  const rangeQ = useEffectQuery(
+    aggregate && cwd && range
+      ? loadSnapshotRangeDiff(cwd, range.base, range.head)
+      : Effect.succeed(null as SnapshotRangeDiffDto | null),
+    [aggregate, cwd, range?.base ?? '', range?.head ?? ''],
+  );
+  // Attribution across a range only holds when EVERY call declared its
+  // targets: one Bash (which declares nothing) makes the union meaningless
+  // and would mislabel that Bash's own writes as someone else's.
+  const declaredUnion = useMemo(() => {
+    if (hashedCalls.length === 0) return null;
+    if (hashedCalls.some((c) => !c.declared || c.declared.length === 0)) return null;
+    return new Set(hashedCalls.flatMap((c) => c.declared as string[]));
+  }, [hashedCalls]);
+  const aggregateFiles = useMemo<CallFile[]>(() => {
+    if (rangeQ.status !== 'success' || !rangeQ.data) return [];
+    return rangeQ.data.files.map((f) => toCallFile(f, declaredUnion));
+  }, [rangeQ, declaredUnion]);
+  const aggregateTruncated = rangeQ.status === 'success' && rangeQ.data?.truncated === true;
+  const aggregateLoading = aggregate && rangeQ.status === 'loading';
+  const aggregateFailed = aggregate && rangeQ.status === 'error';
+
   const [selectedCallKey, setSelectedCallKey] = useState<string | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -392,14 +475,21 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
     if (selectedCall) lastSelectedCallRef.current = selectedCall;
   }, [selectedCall]);
   const displayCall = selectedCall ?? lastSelectedCallRef.current;
+  // What the tree and the diff pane render: one call's files, or the whole
+  // range's net change. Everything downstream is mode-agnostic from here.
+  const activeFiles = useMemo<CallFile[]>(
+    () => (aggregate ? aggregateFiles : (displayCall?.files ?? [])),
+    [aggregate, aggregateFiles, displayCall],
+  );
   const tree = useMemo<GitFileNode<CallFile>[]>(
-    () => (displayCall ? buildGitFileTree(displayCall.files) : []),
-    [displayCall],
+    () => buildGitFileTree(activeFiles),
+    [activeFiles],
   );
   const selectedFile = useMemo(
-    () => displayCall?.files.find((f) => f.path === selectedFilePath) ?? null,
-    [displayCall, selectedFilePath],
+    () => activeFiles.find((f) => f.path === selectedFilePath) ?? null,
+    [activeFiles, selectedFilePath],
   );
+  const activeStats = useMemo(() => fileLineStats(activeFiles), [activeFiles]);
 
   const selectCall = useCallback((call: CallEntry) => {
     setSelectedCallKey(call.key);
@@ -418,6 +508,24 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
       selectCall(calls[0]);
     }
   }, [calls, selectedCallKey, selectCall]);
+
+  // A mode switch swaps the whole file set. Deliberately only re-selects when
+  // the current path is GONE: a file edited in this call is usually present in
+  // the aggregate too, and staying on it makes 汇总 read as "same file, whole
+  // turn" rather than a jump back to the top of the list.
+  useEffect(() => {
+    if (activeFiles.length === 0) return;
+    if (selectedFilePath && activeFiles.some((f) => f.path === selectedFilePath)) return;
+    setSelectedFilePath(activeFiles[0].path);
+  }, [activeFiles, selectedFilePath]);
+
+  // Entering 汇总 expands the whole tree (same as the Explorer compare mode):
+  // the range spans more directories than any single call, so a collapsed
+  // tree would hide most of what the user switched over to see.
+  useEffect(() => {
+    if (!aggregate || aggregateFiles.length === 0) return;
+    setExpandedPaths(new Set(collectGitTreeDirPaths(buildGitFileTree(aggregateFiles))));
+  }, [aggregate, aggregateFiles]);
 
   // ESC closes the innermost layer first: preview overlay → whole modal.
   useEffect(() => {
@@ -465,23 +573,26 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
       className="relative bg-card shadow-lv3 w-full h-full flex flex-col rounded-lg"
       onClick={(e) => e.stopPropagation()}
     >
-        {/* Header */}
-        <div className={`${COLUMN_HEADER_ROW} justify-between px-3`}>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowLeft((s) => !s)}
-              aria-label={t('diffViewer.toggleFileTree')}
-              className={`p-1 rounded transition-colors ${
-                showLeft ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-hover'
-              }`}
-            >
-              <PanelLeft className="w-4 h-4" />
-            </button>
-            <h3 className="text-sm font-medium text-foreground">
-              {t('diffViewer.fileChanges', { count: totalFiles })}
-            </h3>
-          </div>
+        {/* Header.
+
+            Controls sit on the LEFT, macOS-window style, and that is a
+            deliberate reversal. The pointer lives over the diff — the file
+            tree, the gutter, the selection toolbar are all on the left half —
+            so a ✕ pinned to the far right corner charged a full-width mouse
+            trip for the single most common action (dismiss this viewer).
+            Closing is now the shortest travel on the bar, not the longest. */}
+        <div className={`${COLUMN_HEADER_ROW} px-3`}>
           <div className="flex items-center gap-1">
+            {/* Close first, at the very edge: the macOS red-dot position, so
+                the muscle memory people already have lands on it. */}
+            <button
+              onClick={onClose}
+              aria-label={t('common.close')}
+              title={t('common.close')}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-hover rounded transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
             {/* The conventional fullscreen affordance (corner brackets), on
                 purpose: it is the glyph people already read as "make this big"
                 without a tooltip. Strictly it overstates the action — this takes
@@ -502,19 +613,62 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                   : <Maximize className="w-4 h-4" />}
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-hover rounded transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* 汇总: the whole turn's net diff. A two-state toggle (same shape
+                as the Explorer history tab's 对比) — no selection step, no
+                confirm: one click loads, one click returns. */}
+            {canShowAggregate && (
+              <button
+                onClick={() => setAggregate((v) => !v)}
+                disabled={aggregateDisabled}
+                aria-pressed={aggregate}
+                title={
+                  aggregateDisabled
+                    ? t('diffViewer.aggregateUnavailable')
+                    : aggregate
+                      ? t('diffViewer.aggregateOff')
+                      : t('diffViewer.aggregateOn')
+                }
+                className={`ml-0.5 px-2 py-0.5 text-xs rounded border transition-colors ${
+                  aggregateDisabled
+                    ? 'border-border text-foreground-subtle opacity-60 cursor-not-allowed'
+                    : aggregate
+                      ? 'bg-brand text-white border-brand'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:bg-hover'
+                }`}
+              >
+                {t('diffViewer.aggregate')}
+              </button>
+            )}
           </div>
+          {/* Separates "what happens to this viewer" from "what it shows". */}
+          <div className="w-px h-4 bg-border flex-shrink-0" />
+          <button
+            onClick={() => setShowLeft((s) => !s)}
+            aria-label={t('diffViewer.toggleFileTree')}
+            className={`p-1 rounded transition-colors flex-shrink-0 ${
+              showLeft ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-hover'
+            }`}
+          >
+            <PanelLeft className="w-4 h-4" />
+          </button>
+          {/* The two counts differ on purpose: per-call sums every call's
+              files (a file touched 5 times counts 5), aggregate counts the
+              distinct files left changed. Labelling the aggregate keeps the
+              drop from reading as lost data. */}
+          <h3 className="text-sm font-medium text-foreground truncate">
+            {aggregate
+              ? t('diffViewer.fileChangesAggregate', { count: activeFiles.length })
+              : t('diffViewer.fileChanges', { count: totalFiles })}
+          </h3>
         </div>
 
         {/* Body: call list | meta + file tree + diff (mirrors history tab) */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left: one entry per tool call (= one snapshot commit) */}
-          {showLeft && (
+          {/* Left: one entry per tool call (= one snapshot commit). Gone in
+              aggregate mode — there is no per-call axis left to navigate, and
+              the file tree beside it becomes the only list (mirrors the
+              Explorer compare mode replacing its commit list). */}
+          {showLeft && !aggregate && (
             <div className="w-60 flex-shrink-0 border-r border-border overflow-y-auto">
               {calls.map((call) => (
                 <div
@@ -556,36 +710,62 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
               centered(t('diffViewer.loadingSnapshots'))
             ) : calls.length === 0 ? (
               centered(t('diffViewer.noChanges'))
-            ) : displayCall ? (
+            ) : aggregate || displayCall ? (
               <>
                 {/* Meta bar */}
                 <div className="flex items-center gap-3 px-4 py-2 border-b border-border text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1 text-foreground">
-                    <Wrench className="w-3.5 h-3.5" />
-                    {displayCall.toolName}
-                  </span>
-                  {displayCall.shortHash && (
-                    <span className="font-mono text-brand">{displayCall.shortHash}</span>
-                  )}
-                  {displayCall.timestamp !== undefined && (
-                    <span>{formatCallTime(displayCall.timestamp)}</span>
-                  )}
-                  {/* Description (commit subject). Keep a generous preview in
-                      place; the complete command remains available on hover. */}
-                  <span className="flex-1 min-w-0 whitespace-pre-wrap break-words" data-tooltip={callSubject(displayCall)}>
-                    {callSubjectPreview(displayCall, 640, 6)}
-                  </span>
-                  {displayCall.truncated && (
-                    <span className="text-amber-11">{t('diffViewer.truncated')}</span>
-                  )}
-                  {displayCall.legacy && (
-                    <span
-                      className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                      data-tooltip={t('diffViewer.reconstructedHint')}
-                    >
-                      {t('diffViewer.reconstructed')}
-                    </span>
-                  )}
+                  {aggregate ? (
+                    <>
+                      {/* Tool name / hash / subject all describe a single
+                          call, so the aggregate bar states the range instead:
+                          how many files are left changed, by how many calls. */}
+                      <span className="flex items-center gap-1 text-foreground">
+                        <Layers className="w-3.5 h-3.5" />
+                        {t('diffViewer.aggregateSummary', {
+                          count: activeFiles.length,
+                          calls: hashedCalls.length,
+                        })}
+                      </span>
+                      {activeStats && (activeStats.additions > 0 || activeStats.deletions > 0) && (
+                        <LineStatsBadge
+                          additions={activeStats.additions}
+                          deletions={activeStats.deletions}
+                        />
+                      )}
+                      {aggregateTruncated && (
+                        <span className="text-amber-11">{t('diffViewer.truncated')}</span>
+                      )}
+                    </>
+                  ) : displayCall ? (
+                    <>
+                      <span className="flex items-center gap-1 text-foreground">
+                        <Wrench className="w-3.5 h-3.5" />
+                        {displayCall.toolName}
+                      </span>
+                      {displayCall.shortHash && (
+                        <span className="font-mono text-brand">{displayCall.shortHash}</span>
+                      )}
+                      {displayCall.timestamp !== undefined && (
+                        <span>{formatCallTime(displayCall.timestamp)}</span>
+                      )}
+                      {/* Description (commit subject). Keep a generous preview in
+                          place; the complete command remains available on hover. */}
+                      <span className="flex-1 min-w-0 whitespace-pre-wrap break-words" data-tooltip={callSubject(displayCall)}>
+                        {callSubjectPreview(displayCall, 640, 6)}
+                      </span>
+                      {displayCall.truncated && (
+                        <span className="text-amber-11">{t('diffViewer.truncated')}</span>
+                      )}
+                      {displayCall.legacy && (
+                        <span
+                          className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                          data-tooltip={t('diffViewer.reconstructedHint')}
+                        >
+                          {t('diffViewer.reconstructed')}
+                        </span>
+                      )}
+                    </>
+                  ) : null}
                   <div className="ml-auto flex items-center gap-2">
                     {/* Both toggles are text-diff only — an image side-by-side
                         has no density and no unified form (same as the
@@ -604,6 +784,11 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                   {/* File tree (reuses explorer's GitFileTree) */}
                   {showLeft && (
                     <div className="w-72 flex-shrink-0 border-r border-border overflow-y-auto overflow-x-hidden">
+                      {aggregateLoading ? (
+                        <div className="p-4 text-center text-muted-foreground text-sm">
+                          {t('diffViewer.aggregateLoading')}
+                        </div>
+                      ) : (
                       <GitFileTree
                         files={tree as GitFileNode<unknown>[]}
                         selectedPath={selectedFilePath}
@@ -642,6 +827,7 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                           );
                         }}
                       />
+                      )}
                     </div>
                   )}
 
@@ -728,7 +914,16 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                       )
                     ) : (
                       <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                        {t('diffViewer.selectFileToView')}
+                        {aggregateLoading
+                          ? t('diffViewer.aggregateLoading')
+                          : aggregateFailed
+                            ? t('diffViewer.aggregateFailed')
+                            : /* Not "no changes": the calls DID change files,
+                                 they just cancel out across the range (e.g.
+                                 created then deleted, or edited back). */
+                              aggregate && activeFiles.length === 0
+                              ? t('diffViewer.aggregateEmpty')
+                              : t('diffViewer.selectFileToView')}
                       </div>
                     )}
                   </div>
