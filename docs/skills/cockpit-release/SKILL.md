@@ -130,7 +130,7 @@ The cockpit binary picks up `PORT=3458` from env and binds there. `env -i` strip
 SMOKE_PORT=3458
 SMOKE_HOME=$(mktemp -d)    # isolated data dir — avoids the "already running cockpit" guard
 env -i PATH="$PATH" HOME="$HOME" COCKPIT_HOME="$SMOKE_HOME" PORT=$SMOKE_PORT COCKPIT_ENV=prod COCKPIT_NO_OPEN=1 \
-  "$SMOKE_DIR/bin/cock" > /tmp/cock-smoke.log 2>&1 &
+  "$SMOKE_DIR/bin/cockpit" > /tmp/cock-smoke.log 2>&1 &
 COCK_PID=$!
 sleep 12      # cold-start of next-server + WS + share server takes ~8-12s
 

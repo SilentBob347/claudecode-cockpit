@@ -2019,7 +2019,7 @@ You can swap between Claude and DeepSeek tabs all day and never worry about cros
 
 \`\`\`bash
 npm i -g @surething/cockpit
-cock
+cockpit
 \`\`\`
 
 Open the app, pick **DeepSeek** from the new-tab menu, paste your key, ask it to fix something. If it understands your codebase as well as Claude does, the cost per task may surprise you.
@@ -2093,7 +2093,7 @@ Key 配好之后，那颗胶囊会显示当前模型名。再点它就能切换�
 
 \`\`\`bash
 npm i -g @surething/cockpit
-cock
+cockpit
 \`\`\`
 
 打开应用，从新 Tab 菜单里选 **DeepSeek**，把 Key 粘进去，让它修点东西。如果它对你的代码库的理解能跟 Claude 持平，每个任务的成本可能会让你有点意外。
