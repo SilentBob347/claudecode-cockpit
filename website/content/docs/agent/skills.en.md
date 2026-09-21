@@ -147,7 +147,7 @@ The AI writes a self-contained brief (the child sees none of your conversation),
 Later, ask "how did that delegated task go?". The AI finds the receipt — in this conversation, or through the `/ss` flow — and checks the child: `running`, `done`, `failed`, or `incomplete` (stopped or interrupted; open it and continue), plus its last reply.
 
 - **Nothing is stored server-side.** The receipt in the parent conversation is the record; status is read from the child engine's own transcript.
-- **Engines:** `claude` (default), `codex`, `deepseek`, `kimi`, `glm`, `ollama`. The target engine must already be configured; errors like a missing directory come back immediately.
+- **Engines:** `claude`, `codex`, `deepseek`, `kimi`, `glm`, `ollama`. Left unspecified, a delegated session runs on the same engine as the session that started it (falling back to `claude` when that cannot be determined). The target engine must already be configured; errors like a missing directory come back immediately.
 - **Concurrency cap:** at most 4 delegated sessions run at once by default (`COCKPIT_DELEGATE_MAX`, see the [CLI reference](/en/docs/reference/cli/#environment-variables)). Past the cap the request is rejected, not queued.
 - **Not a subagent replacement.** For parallel work inside the same repository, Claude's own subagents are usually the better tool. `/dl` is for other directories, other engines, and sessions you can open and take over.
 

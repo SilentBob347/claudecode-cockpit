@@ -7,12 +7,42 @@ hidden: true
 # Running an @bot line
 
 Every `[subagent·@name]` line in the message is that Bot's work, not yours. Hand it to a session of
-its own and wait for the answer — you are the dispatcher for these lines, not the executor.
+its own and wait for the answer — you are the dispatcher for these lines, not the executor. The
+turn is: write a brief (§1), POST it (§2), wait (`wait.md`), report (§3).
 
-Do **not** read the Bot's `BOT.md` or `bot-turn` yourself. They are listed at the end of the
-message under "pass the path along; do not open them yourself" — that is the only reason you have
-those paths. The child reads them and works from them; keeping them out of this session is the
-point.
+Do **not** read the `BOT.md` or `bot-turn` of a Bot you are delegating to. They are listed at the
+end of the message under "pass the path along; do not open them yourself" — that is the only
+reason you have those paths. The child reads them and works from them; keeping them out of this
+session is the point.
+
+## `[main session·@name]` is the opposite instruction
+
+A line tagged `[main session·@name]` (`[主会话·@name]`) means that Bot's directory **is this
+session's own working directory**. There is nothing to delegate — you are already sitting in the
+files a child would have been started to reach. Read the `bot-turn` path, then that Bot's
+`BOT.md` — both are in the "read these skill files first" list rather than the handoff list,
+because you are their reader this time — and do the task yourself, in the voice its identity files
+define. Nothing else in this file applies to such a line: no brief, no delegate call, no polling.
+
+A message may carry both tags. When it does, the order matters: **POST every `[subagent·@name]`
+brief first, then do your own `[main session·@name]` work, then poll.** The children run while you
+work; doing your own part first only makes them start late. In that message `bot-turn` is listed
+in both blocks on purpose — you read it for your own line and hand the same path over for theirs.
+
+## What else to open, and when
+
+Two files live next to this one and are opened only when the turn reaches them — **check this
+table before you act, not after**:
+
+| Open | When | Why it is not here |
+|---|---|---|
+| `{{COCKPIT_DIR}}/skills/bot-run/wait.md` | **The moment a delegate POST has returned** — before any status call | The poll loop, the budget rule, and what each status means. Every delegation needs it and no `[main session·@name]` line does, so it stays one read away rather than in front of a session that never delegates |
+| `{{COCKPIT_DIR}}/skills/bot-run/followup.md` | The Bot asked something back, or the user answers your report | Continuing a session that already exists. Usually a later turn, and the turn that delegates does not need it in hand |
+
+**Never poll from memory of how this works.** If a POST has returned and you have not opened
+`wait.md` this turn, stop and open it. Hand-rolled status checks fail in one direction only —
+they exit at once and you report a result the child never produced — and that failure is invisible
+from here, because a confident summary of a run that never finished reads exactly like a real one.
 
 ## 1. Write a self-contained brief
 
@@ -78,122 +108,23 @@ The body is `{ cwd, engine?, model?, title?, prompt? | briefPath? }`:
   session list — which is what happened when a session working inside a subdirectory delegated a
   child at the repository root instead. It is also not `pwd`: `pwd` follows any `cd` this turn has
   made, which is why the fallback is only there for a Cockpit too old to export the variable.
-- Leave `engine` and `model` unset. Bot manifests expose only `name` and `description`, and the
-  dispatcher must not open `BOT.md` to invent an engine preference.
+- **Leave `engine` unset unless the user named one.** Omitted, the child inherits the engine this
+  session is running on — the `x-cockpit-run-id` header is what tells the server which that is, so
+  send the header exactly as written above. Set it only when the `@name` line says which engine to
+  use ("用 codex 跑一下", "run this one on glm"); one of `claude`, `codex`, `deepseek`, `kimi`,
+  `glm`, `ollama`. Never open `BOT.md` to invent a preference — a Bot manifest has only `name` and
+  `description`, and it is not where this decision lives.
+- Leave `model` unset. It is not inherited: the engine picks its own default, and a model chosen
+  for this conversation would otherwise be multiplied across every child you start.
 - `title` is optional but always worth setting — it is how the session is listed later.
 - For a one-line task you may send `"prompt": "..."` instead of `briefPath` (escape `"` and `\`).
   A Bot task rarely is one: the brief carries the accumulated context, which is the whole point.
 - The receipt comes back at once: `{ cwd, engine, model?, sessionId, link, title, createdAt,
-  parent? }`. Post every Bot's brief first, then wait.
+  parent? }`. Post every Bot's brief first, **then open `wait.md`** — one wait covers them all.
 - A 400 names the problem — cwd missing, relative, or not a directory; a brief file that does not
   exist; too many delegated sessions already running. Report what it says; do not retry blindly.
 
-## 3. Wait
-
-A Bot turn routinely outlasts a single bash call's tool timeout — a working-tree code review
-measured 11 minutes against a 10-minute ceiling — so the wait has to survive that. Two ways, in
-order of preference:
-
-**Run it in the background if your Bash tool can** (`run_in_background`, a job that notifies you
-on exit, or equivalent). Set `BUDGET` high (3600) and launch once: the tool timeout stops applying,
-you get woken when it finishes, and you are free in the meantime. This is what to reach for first.
-
-**Otherwise wait in chunks.** Foreground, `BUDGET` about 10% under your Bash timeout (600s max →
-`BUDGET=540`; can't raise it → assume 120s and use `BUDGET=100`). Each call prints where things
-stand and exits; if anything is still running, run the same block again with the remaining ids.
-That is the normal path, not a failure.
-
-```bash
-CWD='<the receipt's cwd, verbatim>'
-SIDS='<sessionId>
-<sessionId>'                     # still-running ids, ONE PER LINE
-BUDGET=540                       # seconds THIS call may spend
-
-started=$(date +%s)
-deadline=$(( started + BUDGET ))
-while :; do
-  pending=''
-  for sid in $(printf '%s\n' "$SIDS"); do
-    body=$(curl -sS --fail-with-body --get "{{BASE_URL}}/api/sessions/status" \
-      --data-urlencode "cwd=$CWD" --data-urlencode "sessionId=$sid") || body='{}'
-    state=$(printf '%s' "$body" | python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("status","?"))
-except Exception: print("?")')
-    echo "+$(( $(date +%s) - started ))s $sid -> $state"
-    # `?` = the status call failed, NOT a terminal state. Keep it pending so a
-    # blip retries and a real mistake shows up as a stall, never as "finished".
-    if [ "$state" = running ] || [ "$state" = '?' ]; then pending="$pending
-$sid"; fi
-  done
-  SIDS=$(printf '%s\n' "$pending" | grep -v '^$')
-  [ -z "$SIDS" ] && break
-  [ "$(date +%s)" -ge "$deadline" ] && break
-  if [ "$(( $(date +%s) - started ))" -lt 30 ]; then sleep 5; else sleep 15; fi
-done
-echo "still running: ${SIDS:-none}"
-```
-
-- **`still running: <ids>`** → the budget ran out first. Run the block again with `SIDS` set to
-  exactly those ids. Nothing is wrong.
-- **`still running: none`** → every Bot reached a terminal status. The last `+Ns <sid> -> <state>`
-  line for each is that status; read it before writing the report.
-- **Any `-> ?` line** → that status call failed and the id stays pending. If it repeats, the call
-  is wrong, not the session — see below.
-- One loop covers every Bot, so they run in parallel and each drops out as it finishes.
-- Keep the ids newline-separated and keep `$(printf '%s\n' "$SIDS")` — a plain `for sid in $SIDS`
-  reads as a single id under zsh, which does not word-split parameters.
-
-**There is no fixed cap.** Keep waiting while the user is waiting on the answer. For scale: two
-measured working-tree code reviews took 7 and 11 minutes; a Bot review sweep reads a whole
-directory and takes longer. Once it has run past roughly half an hour, stop waiting silently — say
-it is still going, hand over the links, and let the user decide.
-
-**Never state an outcome you have not seen a non-`running` status for.** Hand-rolled variants of
-this check go wrong in one direction only: they exit immediately and you report a result the child
-never produced.
-
-`done` = the last turn finished normally; `failed` = the engine recorded an error;
-`incomplete` = stopped or interrupted, and the user can open it and carry on.
-
-**`?` is not a status.** It means the status call itself failed — wrong `cwd`, wrong id, server
-gone. The loop keeps such an id pending rather than counting it finished, so a transient blip
-just retries; an id stuck on `?` for a whole budget means the call is wrong. Re-run the bare curl
-without `|| body='{}'`, read the error body, and fix it. Never report `?` as an outcome.
-
-## 4. Follow up in the same session — do not delegate twice
-
-A Bot's answer often needs one more exchange: it asks which of two directories you meant, or the
-user reads the result and wants a change. **That is a message to the session that already exists,
-not a new delegation.**
-
-```bash
-curl -sS --fail-with-body -X POST "{{BASE_URL}}/api/chat" \
-  -H "Content-Type: application/json" \
-  --data-binary @- <<EOF_JSON
-{"cwd": "<the receipt's cwd, verbatim>", "sessionId": "<the receipt's sessionId>", "prompt": "<the follow-up>"}
-EOF_JSON
-```
-
-- No `x-cockpit-run-id` here, unlike §2: only the delegate endpoint reads that header, to record
-  which session started the child. This one continues a session that already has a parent.
-- **Match the route to the engine** the receipt reported: `/api/chat` is claude; codex, ollama,
-  kimi, deepseek and glm each have `/api/chat/<engine>`. Sending to the wrong one starts a
-  different engine on that transcript.
-- It returns `{ runKey, sessionId }` immediately, exactly like a delegation. **Wait for it the same
-  way** — §3, with the same `cwd` and that `sessionId`.
-- **`409 session is already running`** means the child has not finished. That is not an error to
-  route around; wait for a non-`running` status first and send it then.
-- Long or multi-part follow-ups go in a brief file exactly as in §1 — this body takes `prompt`
-  only, so write the file and reference it in the text if it is too big to inline comfortably.
-
-Delegating again instead is the tempting mistake, and it is expensive in a way that does not look
-expensive: the new session starts from nothing, re-reads the Bot's files, and knows only what your
-brief happens to restate. Everything the last turn established — what it checked, what it ruled
-out, what the user already answered — is in *that* transcript, and a summary of it is not the same
-thing. It has happened: a dispatcher decided Cockpit had no way to continue a session, re-delegated
-with a paragraph of context, and paid for the whole task twice.
-
-## 5. Report
+## 3. Report
 
 One short section per Bot: its conclusion in a few lines, then `[open session](<link>)`. The full
 answer lives in that session — do not paste it wholesale, and do not restate it as your own.
@@ -201,14 +132,20 @@ answer lives in that session — do not paste it wholesale, and do not restate i
 repeat the status call with `--data-urlencode "full=1"`. Use the receipt's `link` exactly as
 returned — it is the only record of the delegation, and tool output is not searchable later.
 
+**A `[main session·@name]` line has no link**, because it happened here. Give it its own section
+alongside the delegated ones and close it the way `bot-turn` §2 requires — the answer, then the
+list of Bot files you read and changed. That list is the only record of what the answer stood on,
+and this is the one line in the message that may have edited those files directly.
+
 **A numbered list is a special case.** Some Bot tasks (a review sweep, for instance) end in a list
 of findings the user picks from. Relay it whole with its numbering intact, and keep whatever path
 the child saved it to — the user answers either in that session or by naming that file in a new
 one, and dropping either detail strands the work.
 
 Pressing stop here does not stop a delegated session — it is a separate run. Say so if the user
-expects otherwise.
+expects otherwise. A `[main session·@name]` line is the exception: it runs in this session, so
+stop really does stop it.
 
 When the user answers your report — a correction, a pick from a numbered list, an answer to a
-question the Bot asked — that reply belongs in the session it came from. Go back to §4; do not
-start a second one.
+question the Bot asked — that reply belongs in the session it came from. Open `followup.md`; do
+not start a second one.

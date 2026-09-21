@@ -468,7 +468,15 @@ export function listBuiltinBots(): BotSummary[] {
   return bots;
 }
 
-const realpathOr = (target: string): string => {
+/**
+ * Canonicalize a path, or hand it back untouched when it cannot be resolved.
+ *
+ * Exported because slashCommands compares a session's `cwd` against a Bot's
+ * directory, and the two spellings must come from the SAME canonicalizer as the
+ * ones compared here — a second implementation is how two spellings of one
+ * directory start disagreeing.
+ */
+export const realpathOr = (target: string): string => {
   try {
     // .native so this agrees with botRegistryLive, which canonicalizes the
     // same way; the JS and native implementations differ on Windows.

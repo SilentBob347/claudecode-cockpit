@@ -26,7 +26,10 @@ curl -sS --fail-with-body -X POST "{{BASE_URL}}/api/sessions/delegate" \
 EOF_JSON
 ```
 
-- `engine` defaults to `claude`; `model` is optional
+- `engine` is inherited from the session you are running in when omitted — that is what the
+  `x-cockpit-run-id` header above is for, so always send it. Spell `engine` out only when the
+  task should run somewhere else, which for `/dl` it often should. Claude when the calling
+  session's engine cannot be determined. `model` is optional and never inherited
 - For a one-liner you may send `"prompt": "..."` instead of `briefPath` (escape `"` and `\`)
 - Do not delete the brief file — the child reads it after you return
 - A 400 names the problem (missing directory, unconfigured engine, too many delegated sessions running) — report it, do not retry blindly

@@ -60,9 +60,13 @@ export interface SessionStatusReport {
 }
 
 export interface DelegationService {
-  /** Validate a raw request body (checks cwd / briefPath on disk). */
+  /** Validate a raw request body (checks cwd / briefPath on disk).
+   *  `parentRunId` is the caller's own run (the `x-cockpit-run-id` header): it
+   *  settles `engine` when the body leaves it out, so a delegation runs on the
+   *  same engine as the session that asked for it. */
   readonly validate: (
-    body: Readonly<Record<string, unknown>>
+    body: Readonly<Record<string, unknown>>,
+    parentRunId?: string | null
   ) => Effect.Effect<DelegateRequest, ValidationError>
   /** Start the session and return its receipt without waiting for the task. */
   readonly delegate: (

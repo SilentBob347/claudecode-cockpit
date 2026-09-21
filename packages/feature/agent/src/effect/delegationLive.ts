@@ -83,15 +83,42 @@ const fileExists = (p: string): Effect.Effect<boolean, never> =>
     Effect.orElseSucceed(() => false)
   )
 
+/**
+ * The engine a request with no explicit `engine` runs on: the one the calling
+ * session is itself running, falling back to claude.
+ *
+ * Inheriting is the point — a user talking to codex or glm who writes `@bot`
+ * (or `/dl`) means "another one of these", not "and now a claude". The engine
+ * cannot be read off the request: which engine a chat turn uses is decided by
+ * its ROUTE (`/api/chat` vs `/api/chat/<engine>`), so the only record of it is
+ * the run registry entry the caller's own turn opened.
+ *
+ * Three ways to have no parent engine — no `x-cockpit-run-id` header (a caller
+ * outside a turn), a run already evicted, or an engine outside
+ * DELEGATION_ENGINES (a built-in agent engine) — and all three land on claude,
+ * which is what every delegation did before this existed.
+ *
+ * Note this is the fallback ONLY. An `engine` spelled out in the body that is
+ * not a real engine still fails the request: that is a caller's typo, and
+ * quietly running something else is worse than a 400.
+ */
+const inheritedEngine = (parentRunId: string | null | undefined): DelegationEngine => {
+  const parent = parentRunId ? getRunInfo(parentRunId)?.engine : null
+  return parent && DELEGATION_ENGINES.includes(parent as DelegationEngine)
+    ? (parent as DelegationEngine)
+    : "claude"
+}
+
 export const validateRequest = (
-  body: Readonly<Record<string, unknown>>
+  body: Readonly<Record<string, unknown>>,
+  parentRunId?: string | null
 ): Effect.Effect<DelegateRequest, ValidationError> =>
   Effect.gen(function* () {
     const cwd = str(body.cwd)
     if (!cwd || !isAbsolute(cwd)) return yield* Effect.fail(invalid("cwd", "must be an absolute path"))
     if (!(yield* isDirectory(cwd))) return yield* Effect.fail(invalid("cwd", "directory does not exist"))
 
-    const engine = (str(body.engine) ?? "claude") as DelegationEngine
+    const engine = (str(body.engine) ?? inheritedEngine(parentRunId)) as DelegationEngine
     if (!DELEGATION_ENGINES.includes(engine)) {
       return yield* Effect.fail(invalid("engine", `expected one of ${DELEGATION_ENGINES.join(", ")}`))
     }

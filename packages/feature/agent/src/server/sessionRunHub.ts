@@ -47,6 +47,11 @@ interface RunState {
    *  images-only send has none, so a viewer needs it on the snapshot too or it
    *  cannot scope that turn's tool-call snapshots (see ChatMessage.runId). */
   runId?: string;
+  /** Engine spec name of the turn (`claude`, `codex`, …). Read back by the
+   *  delegate endpoint: a delegation with no explicit `engine` inherits the
+   *  engine of the session that asked for it, which is only knowable here —
+   *  the request carries a run id, not an engine. */
+  engine?: string;
   outputTokens?: number;
   updatedAt: number;
   evictTimer?: ReturnType<typeof setTimeout>;
@@ -123,7 +128,13 @@ function getUsageUpdateOutputTokens(message: unknown): number | null {
  * text comparison suppresses the new turn's bubble. `_ts` (= startedAt) rides along for
  * the disk-copy check on the live-event path (no snapshot in hand there).
  */
-export function startRun(key: string, cwd: string, promptText?: string, runId?: string): boolean {
+export function startRun(
+  key: string,
+  cwd: string,
+  promptText?: string,
+  runId?: string,
+  engine?: string,
+): boolean {
   const prev = registry.get(key);
   // Atomic one-active guard (#10/#5): refuse to start if a turn is already live under `key`.
   // The check and the registry.set below run in one synchronous tick (no await between), so two
@@ -147,6 +158,7 @@ export function startRun(key: string, cwd: string, promptText?: string, runId?: 
     events: [],
     startedAt,
     ...(runId ? { runId } : {}),
+    ...(engine ? { engine } : {}),
     updatedAt: startedAt,
   });
   if (promptText) {
@@ -267,10 +279,15 @@ export function getRunSessionId(key: string): string | null {
  * skill's curl runs in (COCKPIT_RUN_ID) — that run is necessarily live while its own
  * tool call executes, so the grace window never gets in the way.
  */
-export function getRunInfo(key: string): { cwd: string; sessionId: string | null } | null {
+export function getRunInfo(
+  key: string,
+): { cwd: string; sessionId: string | null; engine: string | null } | null {
   const r = registry.get(key);
   if (!r) return null;
-  return { cwd: r.cwd, sessionId: r.sessionId ?? null };
+  // `engine` is deliberately independent of `sessionId`: a session's FIRST turn
+  // has no session id until the engine reveals one, and a caller that gates on
+  // the id would read no engine exactly when a brand-new session delegates.
+  return { cwd: r.cwd, sessionId: r.sessionId ?? null, engine: r.engine ?? null };
 }
 
 /** Register the detached run's abort fn so the stop endpoint can cancel it. */

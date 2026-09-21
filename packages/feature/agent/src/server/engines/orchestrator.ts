@@ -30,10 +30,13 @@ export async function dispatchChat(
     return { ok: false, status: 409, error: 'session is already running' };
   }
 
-  // Resolve built-in slash commands (/qa, /fx, …) by language.
+  // Resolve built-in slash commands (/qa, /fx, …) by language. `cwd` goes in
+  // because an `@bot` line whose Bot directory is this session's own cwd runs
+  // HERE instead of being delegated — the decision needs the session's
+  // directory, which only exists at this level.
   const rawPrompt = body.prompt;
   const prompt =
-    typeof rawPrompt === 'string' ? resolveCommandPrompt(rawPrompt, language, request) : rawPrompt;
+    typeof rawPrompt === 'string' ? resolveCommandPrompt(rawPrompt, language, request, cwd) : rawPrompt;
 
   // Allow images-only (no text).
   const hasContent = (prompt && typeof prompt === 'string') || (images && images.length > 0);
@@ -66,7 +69,9 @@ export async function dispatchChat(
   // could otherwise both pass a separate check-then-act.
   // runId doubles as the turn's identity marker on the seeded _human event (`_turnId`),
   // letting clients dedup the live user bubble without comparing prompt text.
-  if (!startRun(currentKey, cwd || '', promptText, runId)) {
+  // `spec.name` is recorded so a delegation started from inside this turn can
+  // inherit the engine the user is actually talking to (delegationLive).
+  if (!startRun(currentKey, cwd || '', promptText, runId, spec.name)) {
     return { ok: false, status: 409, error: 'run already active' };
   }
   setRunAbort(currentKey, () => {

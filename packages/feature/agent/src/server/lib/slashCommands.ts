@@ -8,7 +8,7 @@ import path, { join } from 'path';
 import type { BotSummary } from '@cockpit/effect-services';
 import { BOTS_FILE, COCKPIT_DIR, SKILLS_FILE } from '@cockpit/shared-utils';
 import { mentionableBots, resolveBot } from '../../shared/bots';
-import { listBuiltinBots } from './builtinBots';
+import { listBuiltinBots, realpathOr } from './builtinBots';
 import {
   listBuiltinSkillExtras,
   listBuiltinSkillNames,
@@ -99,10 +99,17 @@ const COMMAND_LINE_RE = /^\s*(\/@|\/|@)(\S+?)(?:\s+|$)/;
 // agent on the server host, so loopback is always reachable and never needs a
 // token. `_req` is kept on the signature for call-site threading but is no
 // longer consulted for the base URL (see deriveBaseUrl).
+//
+// `cwd` is the SESSION'S OWN working directory (dispatchChat's `body.cwd`, the
+// same value each engine exports as COCKPIT_CWD). It is consulted for one
+// decision only: an `@bot` line whose Bot directory IS this directory runs in
+// this session instead of being delegated — see isLocalBotDir. Omitted or
+// empty, every `@bot` line delegates, which is the behaviour that predates it.
 export function resolveCommandPrompt(
   prompt: string,
   language = 'en',
   _req?: Request,
+  cwd?: string,
 ): string {
   const lang: 'zh' | 'en' = language.startsWith('zh') ? 'zh' : 'en';
 
@@ -124,13 +131,17 @@ export function resolveCommandPrompt(
 
   // ── Find command lines; leave every other line exactly as written ──
   const lines = prompt.split('\n');
-  const cmds: Array<{ i: number; marker: StepMarker; cmd: string; rest: string }> = [];
+  // `local` is decided PER LINE: `@a` is compared against a's directory and
+  // `@b` against b's, so a message may legitimately carry one of each. Nothing
+  // about one line changes the verdict of another.
+  const cmds: Array<{ i: number; marker: StepMarker; cmd: string; rest: string; local: boolean }> = [];
   lines.forEach((line, i) => {
     const m = line.match(COMMAND_LINE_RE);
     if (!m) return;
     const marker = m[1] as StepMarker;
     if (isKnown(marker, m[2])) {
-      cmds.push({ i, marker, cmd: m[2], rest: line.slice(m[0].length).trim() });
+      const local = marker === '@' && isLocalBotDir(cwd, bots.get(m[2])!);
+      cmds.push({ i, marker, cmd: m[2], rest: line.slice(m[0].length).trim(), local });
       return;
     }
     // `@verb` used to mean "run this skill in a subagent"; `/@verb` does now.
@@ -155,7 +166,9 @@ export function resolveCommandPrompt(
   if (cmds.length === 0) return appendUnresolvedNote(prompt, unresolved, lang);
 
   // Show the execution locus only when it disambiguates: multiple commands, or
-  // any subagent delegation. A lone main-session command renders as just `[skill]`.
+  // any `@`/`/@` line. A lone `/skill` renders as just `[skill]`. A lone `@bot`
+  // keeps its locus either way — when it is running HERE, that tag is the only
+  // thing telling the model this line is its own work rather than a delegation.
   const showLocus = cmds.length >= 2 || cmds.some((c) => c.marker !== '/');
   const baseUrl = deriveBaseUrl();
 
@@ -166,14 +179,20 @@ export function resolveCommandPrompt(
   const rendered = new Map<number, string>();
   const consumed = new Set<number>();
   // `kind` splits the reference list by what the reader is supposed to DO with
-  // the path: `read` = open it now (skills), `handoff` = pass it to the session
-  // you delegate to (a Bot's BOT.md). One shared "read these first" header over
-  // both was actively harmful — it told the dispatcher to open the BOT.md that
-  // bot-run, two lines below, tells it not to open, and the model obeyed the
-  // header: it cat'd the BOT.md into this session and then said the two
-  // instructions contradicted each other.
+  // the path: `read` = open it now (skills, and the BOT.md of a Bot running in
+  // THIS session), `handoff` = pass it to the session you delegate to. One
+  // shared "read these first" header over both was actively harmful — it told
+  // the dispatcher to open the BOT.md that bot-run, two lines below, tells it
+  // not to open, and the model obeyed the header: it cat'd the BOT.md into this
+  // session and then said the two instructions contradicted each other.
   const listed: Array<{ name: string; path: string; kind: 'read' | 'handoff' }> = [];
+  // Deduped by kind AND name, not name alone: in a message that both runs one
+  // Bot here and delegates another, bot-turn belongs in BOTH lists — this
+  // session reads it for its own line, and passes the same path to the child
+  // for theirs. Keyed by name alone, whichever list was built first silently
+  // swallowed it and the other half of the message lost its contract.
   const seen = new Set<string>();
+  const key = (kind: 'read' | 'handoff', name: string) => `${kind}:${name}`;
   cmds.forEach((c, k) => {
     const nextCmd = k + 1 < cmds.length ? cmds[k + 1].i : lines.length;
     const bodyLines: string[] = [];
@@ -186,10 +205,14 @@ export function resolveCommandPrompt(
     const ref: SkillRef = c.marker === '@'
       ? { name: `@${c.cmd}`, path: bots.get(c.cmd)!, content: null }
       : resolveSkillRef(c.cmd, baseUrl, userSkills);
-    rendered.set(c.i, renderCommandLine(c.marker, ref, bodyLines.join('\n'), lang, showLocus));
-    if (ref.path && !seen.has(ref.name)) {
-      seen.add(ref.name);
-      listed.push({ name: ref.name, path: ref.path, kind: c.marker === '@' ? 'handoff' : 'read' });
+    // A Bot running in this session is main-session work like a `/skill` is,
+    // and its BOT.md is something to open rather than to hand on.
+    const mainSession = c.marker === '/' || c.local;
+    rendered.set(c.i, renderCommandLine(mainSession, ref, bodyLines.join('\n'), lang, showLocus));
+    const kind: 'read' | 'handoff' = c.marker === '@' && !c.local ? 'handoff' : 'read';
+    if (ref.path && !seen.has(key(kind, ref.name))) {
+      seen.add(key(kind, ref.name));
+      listed.push({ name: ref.name, path: ref.path, kind });
     }
   });
 
@@ -200,34 +223,64 @@ export function resolveCommandPrompt(
   // into BOT.md is frozen on disk the day the Bot is created.
   //
   //   bot-run  → the DISPATCHER reads it: write a brief, delegate, poll, report.
-  //   bot-turn → the CHILD reads it (dispatcher passes the path unopened): read
-  //              rules, entry format, when writing is allowed, the write lock.
+  //   bot-turn → whoever RUNS the turn reads it: read rules, entry format, when
+  //              writing is allowed, the write lock.
   //
-  // Appended once each, however many `@bot` lines there are. bot-turn is listed
-  // as `handoff` next to the BOT.md files it belongs with; it must reach the
-  // child, and a dispatcher that reads it has pulled the Bot's whole operating
-  // contract into the session it was supposed to keep out of.
+  // Appended once per kind, however many `@bot` lines there are — and which
+  // kinds appear depends on where those lines run:
+  //
+  //   any line delegates  → bot-run to READ (the recipe), bot-turn as HANDOFF.
+  //                         A dispatcher that opens the handoff copy has pulled
+  //                         the Bot's whole operating contract into the session
+  //                         it was supposed to be kept out of.
+  //   any line runs here  → bot-turn to READ. This session is the one bot-turn
+  //                         addresses, so the rule above simply does not apply
+  //                         to it.
+  //   both               → bot-turn in both lists, deliberately (see `seen`).
+  //   no line delegates  → no bot-run at all; there is no dispatch to recite.
   let botRunInline: string | null = null;
-  if (cmds.some((c) => c.marker === '@')) {
-    const run = resolveSkillRef('bot-run', baseUrl, userSkills);
-    if (run.path && !seen.has(run.name)) {
-      seen.add(run.name);
-      listed.push({ name: run.name, path: run.path, kind: 'read' });
-    } else if (!run.path) {
-      // Same degraded path command lines take (builtin unwritable): inline it.
-      // Dropping it instead would leave the `@bot` tags with no dispatch recipe
-      // at all AND a BOT.md nobody is allowed to open — a guaranteed no-op.
-      botRunInline = run.content;
-    }
+  let botTurnInline: string | null = null;
+  const delegates = cmds.some((c) => c.marker === '@' && !c.local);
+  const runsHere = cmds.some((c) => c.marker === '@' && c.local);
+  if (delegates || runsHere) {
     const turn = resolveSkillRef('bot-turn', baseUrl, userSkills);
-    // Ahead of the BOT.md paths, matching the order bot-run tells the dispatcher
-    // to write into the brief: the general contract, then the particular Bot.
-    // Never inlined on failure — it is addressed to the child, and inlining it
-    // would put it in front of exactly the wrong reader.
-    if (turn.path && !seen.has(turn.name)) {
-      seen.add(turn.name);
+    // Three unshifts, in reverse of the order they should be READ in — each one
+    // goes to the front, so the last is first. Within a block that yields
+    // bot-run, then bot-turn, then the BOT.md paths: the dispatch recipe before
+    // the paths it operates on, and the general contract before the particular
+    // Bot (the same order bot-run tells the dispatcher to write into a brief).
+    if (delegates && turn.path && !seen.has(key('handoff', turn.name))) {
+      seen.add(key('handoff', turn.name));
       listed.unshift({ name: turn.name, path: turn.path, kind: 'handoff' });
     }
+    if (runsHere) {
+      if (turn.path && !seen.has(key('read', turn.name))) {
+        seen.add(key('read', turn.name));
+        listed.unshift({ name: turn.name, path: turn.path, kind: 'read' });
+      } else if (!turn.path) {
+        // Inlined ONLY because a Bot is running here: this session is the reader
+        // bot-turn is addressed to, and without it the turn has no write-lock
+        // protocol while being the one turn that edits Bot files directly. For a
+        // delegated line the opposite still holds — it is dropped rather than
+        // inlined, since putting the child's contract in front of the dispatcher
+        // is exactly what the handoff split exists to prevent.
+        botTurnInline = turn.content;
+      }
+    }
+    if (delegates) {
+      const run = resolveSkillRef('bot-run', baseUrl, userSkills);
+      if (run.path && !seen.has(key('read', run.name))) {
+        seen.add(key('read', run.name));
+        listed.unshift({ name: run.name, path: run.path, kind: 'read' });
+      } else if (!run.path) {
+        // Same degraded path command lines take (builtin unwritable): inline it.
+        // Dropping it instead would leave the `@bot` tags with no dispatch recipe
+        // at all AND a BOT.md nobody is allowed to open — a guaranteed no-op.
+        botRunInline = run.content;
+      }
+    }
+    // Nothing is appended for a message whose every `@bot` line runs here: there
+    // is no delegation to recite a recipe for.
   }
 
   const out: string[] = [];
@@ -248,14 +301,25 @@ export function resolveCommandPrompt(
     const sep = lang === 'zh' ? '：' : ': ';
     return `${header}\n${items.map((s) => `- ${s.name}${sep}${s.path}`).join('\n')}`;
   };
+  // The handoff header softens when a Bot also runs here, because then bot-turn
+  // is listed in BOTH blocks on purpose (see `seen` above) and a flat "do not
+  // open these" would forbid the file the block above just told this session to
+  // read. Only the mixed message pays for that wording; a pure delegation keeps
+  // the blunt version, which is the one that has to hold.
+  const handoffHeader = runsHere
+    ? (lang === 'zh'
+      ? '以下路径原样转交给你派发的子会话；除上面读取列表已列出的以外，不要自己打开：'
+      : 'Pass these paths verbatim to the session you delegate to; do not open any that the read list above does not already list:')
+    : (lang === 'zh'
+      ? '以下文件交给你派发的子会话去读，你只转交路径，不要自己打开：'
+      : 'These files are for the session you delegate to. Pass the paths along; do not open them yourself:');
   const blocks = [
     block('read', lang === 'zh'
       ? '请先读取以下 skill 文件，再据此执行：'
       : 'Read these skill files first, then act accordingly:'),
-    block('handoff', lang === 'zh'
-      ? '以下文件交给你派发的子会话去读，你只转交路径，不要自己打开：'
-      : 'These files are for the session you delegate to. Pass the paths along; do not open them yourself:'),
+    block('handoff', handoffHeader),
     botRunInline,
+    botTurnInline,
   ].filter((b): b is string => b !== null);
   if (blocks.length > 0) result = `${result}\n\n${blocks.join('\n\n')}`;
   return appendUnresolvedNote(result, unresolved, lang);
@@ -288,25 +352,54 @@ interface SkillRef {
 // content, glued to any body with a sequence connective, so the command never
 // silently no-ops.
 function renderCommandLine(
-  marker: StepMarker,
+  mainSession: boolean,
   ref: SkillRef,
   body: string,
   lang: 'zh' | 'en',
   showLocus: boolean,
 ): string {
   if (ref.path) {
-    const tag = showLocus ? `[${locusWord(marker, lang)}·${ref.name}]` : `[${ref.name}]`;
+    const tag = showLocus ? `[${locusWord(mainSession, lang)}·${ref.name}]` : `[${ref.name}]`;
     return body ? `${tag} ${body}` : tag;
   }
-  const locus = showLocus ? `[${locusWord(marker, lang)}] ` : '';
+  const locus = showLocus ? `[${locusWord(mainSession, lang)}] ` : '';
   const then = body ? (lang === 'zh' ? `，然后：${body}` : `, then: ${body}`) : '';
   return `${locus}${ref.content ?? ''}${then}`;
 }
 
-/** Bare execution-locus word: main session vs subagent. */
-function locusWord(marker: StepMarker, lang: 'zh' | 'en'): string {
-  if (marker !== '/') return 'subagent';
+/** Bare execution-locus word: main session vs subagent. Takes the decision, not
+ *  the marker — an `@bot` whose directory is this session's own cwd runs here,
+ *  and that tag is what tells the reader the line is not a delegation. */
+function locusWord(mainSession: boolean, lang: 'zh' | 'en'): string {
+  if (!mainSession) return 'subagent';
   return lang === 'zh' ? '主会话' : 'main session';
+}
+
+/**
+ * Is this session's working directory the Bot's own directory?
+ *
+ * Exact equality, deliberately: a session sitting in `<bot>/memory` is not
+ * "in the Bot" for dispatch purposes, and missing that case costs nothing —
+ * the line simply delegates, exactly as it did before this rule existed.
+ * Containment would also let a session opened at a repository root that merely
+ * CONTAINS `bots/` swallow every `@bot` line in the project.
+ *
+ * Both sides are canonicalized through builtinBots' realpathOr, because they
+ * reach here from different places and only one of them is normalized already:
+ * `cwd` is whatever the client put in the request body (nothing on the server
+ * touches it), a registered Bot's path was realpath'd when it was added
+ * (botRegistryLive), and a built-in's is a plain COCKPIT_DIR join. A raw `===`
+ * therefore misses on a trailing slash, a symlinked path (`/tmp` vs
+ * `/private/tmp`), or a case difference on a case-insensitive filesystem — and
+ * it misses SILENTLY: the `@bot` line delegates and the only symptom is a
+ * feature that seems not to work.
+ */
+function isLocalBotDir(cwd: string | undefined, manifestPath: string): boolean {
+  if (!cwd || !path.isAbsolute(cwd)) return false;
+  // `/` shrinks to '' here; realpathOr hands that back unchanged and no Bot
+  // directory can equal it, so the root case falls through as "not local".
+  const norm = (p: string) => realpathOr(p.replace(/[\\/]+$/, ''));
+  return norm(cwd) === norm(path.dirname(manifestPath));
 }
 
 // Resolve a command verb to its skill reference (name + absolute SKILL.md path).

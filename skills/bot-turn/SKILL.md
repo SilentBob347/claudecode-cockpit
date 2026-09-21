@@ -18,6 +18,13 @@ On a **review, an attach or an export** your working directory is the Bot's own,
 relative paths work there; on ordinary work it is the project instead. Either way the paths you
 were handed are absolute and remain the authority — check where you are rather than assuming.
 
+**You may not be in a session of your own.** When the session that received the `@name` line was
+already sitting in the Bot's directory, the turn runs there instead of being delegated: the
+working directory is the Bot's whatever the task is, the transcript is shared with whatever else
+that session was doing, and stopping the session really does stop this turn. Everything below
+holds unchanged — the write lock most of all, since a session that was already in these files is
+the one most likely to edit them without going through it.
+
 ## What else to open, and when
 
 Most turns need nothing beyond this file. Four things live next to it and are opened only when

@@ -131,9 +131,9 @@ not have it, say so rather than inventing a protocol — especially the write lo
 
 ## Updating
 
-Only when the task explicitly asks to remember, update, correct or forget something (`bot-turn`
-§3–§4 covers the rest: metadata, what never gets recorded, the write lock). Where things go in
-this Bot:
+Only when the task explicitly asks to remember, update, correct or forget something (`bot-turn`'s
+`writing.md` covers the rest: entry metadata, what never gets recorded, the write lock). Where
+things go in this Bot:
 
 - a confirmed fact or a correction → memory/facts.md (mark the old entry `status: superseded` or replace it; never leave a contradiction)
 - a decision and its reason → memory/facts.md under `## Decisions`, dated

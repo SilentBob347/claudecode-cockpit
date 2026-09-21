@@ -51,7 +51,8 @@ afterAll(() => {
 });
 
 describe('validateRequest', () => {
-  const run = (body: Record<string, unknown>) => Effect.runPromiseExit(dl.validateRequest(body));
+  const run = (body: Record<string, unknown>, parentRunId?: string | null) =>
+    Effect.runPromiseExit(dl.validateRequest(body, parentRunId));
   const reason = async (body: Record<string, unknown>) => {
     const exit = await run(body);
     return Exit.isFailure(exit) ? JSON.stringify(exit.cause) : 'ok';
@@ -60,6 +61,48 @@ describe('validateRequest', () => {
   it('accepts a minimal body and defaults engine + title', async () => {
     const exit = await run({ cwd: projectDir, prompt: 'Fix the flaky test\nmore detail' });
     expect(Exit.isSuccess(exit) && exit.value).toMatchObject({ cwd: projectDir, engine: 'claude', title: 'Fix the flaky test' });
+  });
+
+  // A user talking to codex who writes `@bot` or `/dl` means "another one of
+  // these". The engine is not in the request — a chat turn's engine is decided
+  // by its ROUTE — so the caller's own run registry entry is the only record.
+  describe('inherits the calling session\'s engine', () => {
+    const engineOf = async (body: Record<string, unknown>, parentRunId?: string | null) => {
+      const exit = await run(body, parentRunId);
+      return Exit.isSuccess(exit) ? exit.value.engine : `failed: ${JSON.stringify(exit.cause)}`;
+    };
+    const body = { cwd: projectDir, prompt: 'x' };
+
+    it('takes the parent run\'s engine when the body omits one', async () => {
+      hub.startRun('run-codex', projectDir, undefined, undefined, 'codex');
+      expect(await engineOf(body, 'run-codex')).toBe('codex');
+    });
+
+    it('does not wait for the parent to reveal a session id', async () => {
+      // The first turn of a brand-new session has no sessionId yet. Reading the
+      // engine through anything that gates on one (resolveParent does) would
+      // fall back to claude exactly when a fresh session delegates — invisibly,
+      // since that is also the old behaviour.
+      hub.startRun('run-fresh', projectDir, undefined, undefined, 'glm');
+      expect(await Effect.runPromise(dl.resolveParent('run-fresh'))).toBeNull();
+      expect(await engineOf(body, 'run-fresh')).toBe('glm');
+    });
+
+    it('falls back to claude with no header, an unknown run, or a non-delegatable engine', async () => {
+      hub.startRun('run-builtin', projectDir, undefined, undefined, 'some-builtin-agent');
+      expect(await engineOf(body)).toBe('claude');
+      expect(await engineOf(body, null)).toBe('claude');
+      expect(await engineOf(body, 'run-evicted')).toBe('claude');
+      expect(await engineOf(body, 'run-builtin')).toBe('claude');
+    });
+
+    it('never overrides an engine the caller spelled out', async () => {
+      hub.startRun('run-codex2', projectDir, undefined, undefined, 'codex');
+      expect(await engineOf({ ...body, engine: 'kimi' }, 'run-codex2')).toBe('kimi');
+      // And a typo still 400s rather than quietly inheriting: the caller asked
+      // for something specific and did not get it.
+      expect(await engineOf({ ...body, engine: 'gpt' }, 'run-codex2')).toMatch(/expected one of/);
+    });
   });
 
   it('rejects bad cwd, engine, missing task and missing brief', async () => {

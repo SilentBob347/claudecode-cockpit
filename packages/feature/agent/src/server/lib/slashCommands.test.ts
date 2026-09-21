@@ -70,21 +70,35 @@ describe('resolveCommandPrompt', () => {
   // missing rule, and nothing else in the system would notice.
   it('copies a builtin\'s reference files next to its resolved SKILL.md, substituted', () => {
     resolveCommandPrompt('@product hi');
-    const read = (file: string) =>
-      fs.readFileSync(path.join(cockpitHome, 'skills', 'bot-turn', file), 'utf-8');
-    // Deliberately a blanket check rather than a list of known names: a typo'd
-    // `{{COCKPIT_DIRR}}` is invisible otherwise, and it reaches the model as
-    // literal braces. It also means a reference file may not *mention* the
-    // double-brace form in prose — describe it in words instead.
-    for (const file of ['writing.md', 'review.md', 'attach.md', 'export.md']) {
-      expect(read(file)).not.toContain('{{');
+    const read = (skill: string, file: string) =>
+      fs.readFileSync(path.join(cockpitHome, 'skills', skill, file), 'utf-8');
+    // Enumerated from the source directory rather than a hardcoded list: both
+    // @bot builtins defer their bulk to sibling files, and a new one added to
+    // either must be covered without anyone remembering to extend this test.
+    const extras = (skill: string) =>
+      fs.readdirSync(path.join(process.env.COCKPIT_ROOT!, 'skills', skill))
+        .filter((f) => f.endsWith('.md') && f !== 'SKILL.md');
+    for (const skill of ['bot-turn', 'bot-run']) {
+      expect(extras(skill).length).toBeGreaterThan(0);
+      // Deliberately a blanket check rather than a list of known names: a typo'd
+      // `{{COCKPIT_DIRR}}` is invisible otherwise, and it reaches the model as
+      // literal braces. It also means a reference file may not *mention* the
+      // double-brace form in prose — describe it in words instead.
+      for (const file of extras(skill)) expect(read(skill, file)).not.toContain('{{');
     }
     // One positive check per placeholder kind — `not.toContain('{{')` alone
     // passes on a file that never had one. Match on the substituted value only:
     // the skills write `{{COCKPIT_DIR}}/skills/...` with forward slashes, so the
     // full path is mixed-separator on Windows and never equals path.join().
-    expect(read('writing.md')).toContain('http://localhost:'); // {{BASE_URL}}
-    expect(read('review.md')).toContain(cockpitHome); // {{COCKPIT_DIR}}
+    expect(read('bot-turn', 'writing.md')).toContain('http://localhost:'); // {{BASE_URL}}
+    expect(read('bot-turn', 'review.md')).toContain(cockpitHome); // {{COCKPIT_DIR}}
+    expect(read('bot-run', 'wait.md')).toContain('http://localhost:');
+    // The trigger table is what sends the reader to those two files at all, so
+    // an unsubstituted path there is the same as not shipping them.
+    // Forward slashes, not path.join: COCKPIT_DIR is substituted verbatim and the
+    // skill spells the rest of the path with `/`, so on Windows the result is
+    // mixed-separator and equals no path.join() output.
+    expect(read('bot-run', 'SKILL.md')).toContain(`${cockpitHome}/skills/bot-run/wait.md`);
   });
 
   // The Skills table names a registered skill rather than pointing at a file, so
@@ -143,6 +157,92 @@ describe('resolveCommandPrompt', () => {
 
   it('shows the subagent locus even for a lone @bot', () => {
     expect(resolveCommandPrompt('@product hi').split('\n')[0]).toBe('[subagent·@product] hi');
+  });
+
+  // ── A Bot whose directory IS this session's cwd runs here, not in a child ──
+  //
+  // The whole delegation apparatus exists to give the Bot a session with its own
+  // files as context. A session already sitting in those files has that already,
+  // so delegating buys a cold start and a second transcript and nothing else.
+  describe('an @bot whose directory is the session cwd', () => {
+    const builtin = (name: string) => path.join(cockpitHome, 'skills', name, 'SKILL.md');
+    const productDir = () => path.dirname(productManifest);
+
+    it('runs in this session: main-session locus, BOT.md to read, no bot-run', () => {
+      const out = resolveCommandPrompt('@product check the roadmap', 'en', undefined, productDir());
+      expect(out).toBe([
+        '[main session·@product] check the roadmap',
+        '',
+        // bot-turn ahead of BOT.md — the general contract, then this Bot — and
+        // both under "read", because this session is the one that works from them.
+        'Read these skill files first, then act accordingly:',
+        `- bot-turn: ${builtin('bot-turn')}`,
+        `- @product: ${productManifest}`,
+      ].join('\n'));
+      // No delegation in the message, so no dispatch recipe and no handoff block:
+      // a bot-run here would tell the session to delegate what it just did itself.
+      expect(out).not.toContain('bot-run');
+      expect(out).not.toContain('do not open them yourself');
+    });
+
+    it('matches through a trailing slash and a symlinked cwd', () => {
+      // os.tmpdir() is itself a symlink on macOS (/var → /private/var), so the
+      // realpath'd spelling is a genuinely different string from the one in
+      // bot.json — exactly the case a raw === would miss in silence.
+      for (const cwd of [`${productDir()}${path.sep}`, fs.realpathSync(productDir())]) {
+        expect(resolveCommandPrompt('@product hi', 'en', undefined, cwd).split('\n')[0])
+          .toBe('[main session·@product] hi');
+      }
+    });
+
+    it('delegates from a subdirectory of the Bot, and from the directory above it', () => {
+      const sub = path.join(productDir(), 'memory');
+      fs.mkdirSync(sub, { recursive: true });
+      for (const cwd of [sub, path.dirname(productDir())]) {
+        // Exact equality only. A miss costs nothing — the line delegates, which
+        // is what it did before this rule existed — while the directory ABOVE
+        // matching would make every @bot line in a repo that contains bots/ run
+        // in the main session.
+        expect(resolveCommandPrompt('@product hi', 'en', undefined, cwd).split('\n')[0])
+          .toBe('[subagent·@product] hi');
+      }
+    });
+
+    it('is decided per line: one Bot runs here while another is delegated', () => {
+      const out = resolveCommandPrompt('@product mine\n@finance review the budget', 'en', undefined, productDir());
+      expect(out).toBe([
+        '[main session·@product] mine',
+        '[subagent·@finance] review the budget',
+        '',
+        'Read these skill files first, then act accordingly:',
+        `- bot-run: ${builtin('bot-run')}`,
+        `- bot-turn: ${builtin('bot-turn')}`,
+        `- @product: ${productManifest}`,
+        '',
+        // bot-turn is listed TWICE on purpose — read for @product's line, handed
+        // over for @finance's — so the handoff header cannot say "do not open".
+        'Pass these paths verbatim to the session you delegate to; do not open any that the read list above does not already list:',
+        `- bot-turn: ${builtin('bot-turn')}`,
+        `- @finance: ${financeManifest}`,
+      ].join('\n'));
+    });
+
+    it('inlines bot-turn when it cannot be written and a Bot runs here', () => {
+      const skillFile = builtin('bot-turn');
+      resolveCommandPrompt('@product hi'); // ensure the file exists to chmod
+      fs.chmodSync(skillFile, 0o444);
+      try {
+        // The mirror image of the delegation case above: there, bot-turn is
+        // dropped because the dispatcher must not read it. Here this session IS
+        // its reader, and dropping it would leave the one turn that edits Bot
+        // files directly with no write-lock protocol at all.
+        const out = resolveCommandPrompt('@product hi', 'en', undefined, productDir());
+        expect(out).not.toContain(skillFile);
+        expect(out).toContain('# Working as a Bot');
+      } finally {
+        fs.chmodSync(skillFile, 0o644);
+      }
+    });
   });
 
   it('mixes @bot with /skill and /@skill lines', () => {
