@@ -36,6 +36,7 @@ import {
 } from './effect/snapshotClient';
 import type { ToolCallInfo } from './types';
 import { isMutatingToolName } from '../shared/toolMutation';
+import { BASELINE_SHIFT_FILES, countLeadingBaselineShifts } from './baselineShift';
 
 // Layout mirrors the Explorer "History" tab: a commit list on the left
 // (one entry per tool call = one shadow-git snapshot commit), and a
@@ -395,6 +396,10 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
   // Pane-local like the density / view-mode toggles; opening the viewer always
   // starts per-call, because "what did THIS call do" is the common question.
   const [aggregate, setAggregate] = useState(false);
+  // Escape hatch for the file-count heuristic below: a genuine wide codemod
+  // looks exactly like a branch switch by size alone, so the user can always
+  // pull the skipped calls back in.
+  const [includeBaselineShifts, setIncludeBaselineShifts] = useState(false);
 
   // Snapshot-backed calls, oldest first — the only ones a range can span
   // (legacy pseudo-calls are rebuilt from tool parameters and have no commit).
@@ -402,13 +407,31 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
   // base..head for the aggregate view. `base` is the OLDEST call's PARENT so
   // that call's own changes are inside the range; null means the range starts
   // at the empty tree (parentless day-root commit).
+  // Leading baseline shifts, counted regardless of whether they are currently
+  // being skipped — the meta bar needs the number either way to offer the undo.
+  const leadingBaselineShifts = useMemo(
+    () => countLeadingBaselineShifts(hashedCalls),
+    [hashedCalls],
+  );
+  // The calls the aggregate actually spans.
+  const spannedCalls = useMemo(
+    () => (includeBaselineShifts ? hashedCalls : hashedCalls.slice(leadingBaselineShifts)),
+    [hashedCalls, includeBaselineShifts, leadingBaselineShifts],
+  );
+  // base..head for the aggregate view. `base` is the OLDEST spanned call's
+  // PARENT so that call's own changes are inside the range; null means the
+  // range starts at the empty tree (parentless day-root commit).
+  //
+  // One spanned call is enough once a shift was skipped — "everything except
+  // the branch switch" is a real answer even when it is a single call.
   const range = useMemo(() => {
-    if (hashedCalls.length < 2) return null;
+    if (spannedCalls.length === 0) return null;
+    if (spannedCalls.length < 2 && leadingBaselineShifts === 0) return null;
     return {
-      base: hashedCalls[0].parent ?? null,
-      head: hashedCalls[hashedCalls.length - 1].hash as string,
+      base: spannedCalls[0].parent ?? null,
+      head: spannedCalls[spannedCalls.length - 1].hash as string,
     };
-  }, [hashedCalls]);
+  }, [spannedCalls, leadingBaselineShifts]);
   // Shown from two calls up (aggregating a single call would just restate it),
   // disabled when those calls carry no snapshots to diff between.
   const canShowAggregate = Boolean(cwd) && calls.length >= 2;
@@ -429,10 +452,10 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
   // targets: one Bash (which declares nothing) makes the union meaningless
   // and would mislabel that Bash's own writes as someone else's.
   const declaredUnion = useMemo(() => {
-    if (hashedCalls.length === 0) return null;
-    if (hashedCalls.some((c) => !c.declared || c.declared.length === 0)) return null;
-    return new Set(hashedCalls.flatMap((c) => c.declared as string[]));
-  }, [hashedCalls]);
+    if (spannedCalls.length === 0) return null;
+    if (spannedCalls.some((c) => !c.declared || c.declared.length === 0)) return null;
+    return new Set(spannedCalls.flatMap((c) => c.declared as string[]));
+  }, [spannedCalls]);
   const aggregateFiles = useMemo<CallFile[]>(() => {
     if (rangeQ.status !== 'success' || !rangeQ.data) return [];
     return rangeQ.data.files.map((f) => toCallFile(f, declaredUnion));
@@ -723,9 +746,24 @@ export function FileDiffViewer({ toolCalls, cwd, sessionId, onClose, onContentSe
                         <Layers className="w-3.5 h-3.5" />
                         {t('diffViewer.aggregateSummary', {
                           count: activeFiles.length,
-                          calls: hashedCalls.length,
+                          calls: spannedCalls.length,
                         })}
                       </span>
+                      {/* Never skip silently: the heuristic is a guess, so it
+                          states what it dropped and offers the undo inline. */}
+                      {leadingBaselineShifts > 0 && (
+                        <button
+                          onClick={() => setIncludeBaselineShifts((v) => !v)}
+                          data-tooltip={t('diffViewer.aggregateSkippedHint', {
+                            threshold: BASELINE_SHIFT_FILES,
+                          })}
+                          className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors"
+                        >
+                          {includeBaselineShifts
+                            ? t('diffViewer.aggregateBaselineIncluded', { count: leadingBaselineShifts })
+                            : t('diffViewer.aggregateBaselineSkipped', { count: leadingBaselineShifts })}
+                        </button>
+                      )}
                       {activeStats && (activeStats.additions > 0 || activeStats.deletions > 0) && (
                         <LineStatsBadge
                           additions={activeStats.additions}
