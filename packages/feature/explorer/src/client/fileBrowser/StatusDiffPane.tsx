@@ -17,21 +17,15 @@
  *
  * What stays in the parent:
  *
- *   - `jsonPreview` modal state — referenced from the history tab too
- *     (compare-mode JSON preview opens via the same setter), so it
- *     can't move down here without introducing prop-drill back up.
+ *   - `jsonPreview` modal state AND its rendering — the history tab's
+ *     compare mode opens the same modal, so it is rendered once in the
+ *     FileBrowserModal right panel (not gated on the active tab); this
+ *     pane only calls `setJsonPreview`.
  *   - The Markdown preview modal toggle (`showStatusDiffPreview`) is
  *     owned by `useGitStatus`; we just forward through.
- *
- * Latent bug NOT fixed here: the JSON modal renders inside this
- * pane's subtree, which is gated on `activeTab === 'status'`. Setting
- * `jsonPreview` from the history tab won't show a modal until the
- * user switches tabs. Preserved as-is to keep this refactor a pure
- * structural move; fixing it requires lifting the modal to the
- * top-level FileBrowserModal layout, which is a separate concern.
  */
 
-import { useMemo, useState, type RefObject } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@cockpit/shared-ui';
 
@@ -39,8 +33,7 @@ import { DiffView, DiffUnifiedView } from '@cockpit/feature-explorer';
 import { DiffDensityToggle } from '../DiffDensityToggle';
 import { DiffViewModeToggle } from '../DiffViewModeToggle';
 import { InteractiveMarkdownPreview, HtmlPreviewModal } from '@cockpit/feature-explorer';
-import { isMarkdownFile, isHtmlFile, formatAsHumanReadable } from '../toolCallUtils';
-import { type useJsonSearch, JsonSearchBar } from '@cockpit/shared-ui';
+import { isMarkdownFile, isHtmlFile } from '../toolCallUtils';
 
 import { Tooltip } from '@cockpit/shared-ui';
 
@@ -91,14 +84,9 @@ interface StatusDiffPaneProps {
   /** "Reveal this file in the directory tree" — wired by parent. */
   locateInTree: (path: string) => void;
 
-  /** JSON readable-preview modal state. Lifted to the parent so the
-   *  history tab can also write into it; we just consume here. The
-   *  JSON modal's RENDERING currently lives inside this component
-   *  (see file header for the latent-bug note). */
-  jsonPreview: { content: string; filePath: string } | null;
+  /** Opens the JSON readable-preview modal, which the parent owns and
+   *  renders (shared with the history tab's compare mode). */
   setJsonPreview: (v: { content: string; filePath: string } | null) => void;
-  jsonPreviewSearch: ReturnType<typeof useJsonSearch>;
-  jsonPreviewPreRef: RefObject<HTMLPreElement | null>;
 
   /** LSP hover wiring for the diff's after side — see DiffViewProps.
    *  Forwarded ONLY for unstaged diffs; see `lspHoverProps` below. */
@@ -121,10 +109,7 @@ export function StatusDiffPane({
   fileGitStatusMap,
   onContentSearch,
   locateInTree,
-  jsonPreview,
   setJsonPreview,
-  jsonPreviewSearch,
-  jsonPreviewPreRef,
   onTokenHover,
   onTokenHoverLeave,
   onTokenHoverCancel,
@@ -529,44 +514,6 @@ export function StatusDiffPane({
         />
       )}
 
-      {/* JSON readable preview modal. State is lifted to parent so the
-          history tab can also trigger it; rendering lives here for
-          historical reasons (see file header). */}
-      {jsonPreview && (
-        <div
-          className="absolute inset-0 z-50 flex items-center justify-center bg-scrim"
-          onClick={() => setJsonPreview(null)}
-        >
-          <div
-            className="bg-card rounded-lg shadow-lv3 w-full max-w-[90%] h-[90%] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
-              <span className="text-sm text-muted-foreground font-mono truncate">
-                {jsonPreview.filePath}
-              </span>
-              <button
-                onClick={() => setJsonPreview(null)}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-hover rounded transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <JsonSearchBar search={jsonPreviewSearch} />
-            <div className="flex-1 overflow-auto px-6 py-4 bg-secondary">
-              <pre
-                ref={jsonPreviewPreRef}
-                className="whitespace-pre-wrap break-words font-mono text-foreground"
-                style={{ fontSize: '0.8125rem', lineHeight: '1.5' }}
-              >
-                {formatAsHumanReadable(jsonPreview.content)}
-              </pre>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

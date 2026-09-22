@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DiffView, DiffUnifiedView, HtmlPreviewModal } from '@cockpit/feature-explorer';
+import { DiffView, DiffUnifiedView, HtmlPreviewModal, InteractiveMarkdownPreview } from '@cockpit/feature-explorer';
 import { DiffDensityToggle } from './DiffDensityToggle';
 import { DiffViewModeToggle } from './DiffViewModeToggle';
 import { GitFileTree, buildGitFileTree, collectGitTreeDirPaths, type GitFileNode } from './GitFileTree';
@@ -11,8 +11,9 @@ import { FilePathActions } from './fileBrowser/FilePathActions';
 import { isImageFile } from './fileBrowser/utils';
 import { BrowserRuntime } from '@cockpit/effect-runtime';
 import { fetchCommitDiff } from './effect/gitClient';
-import { formatAsHumanReadable, isHtmlFile } from './toolCallUtils';
-import { useJsonSearch, JsonSearchBar, blurActiveElement, useAIBridge } from '@cockpit/shared-ui';
+import { isHtmlFile, isMarkdownFile } from './toolCallUtils';
+import { JsonPreviewModal } from './fileBrowser/JsonPreviewModal';
+import { useJsonSearch, blurActiveElement, useAIBridge } from '@cockpit/shared-ui';
 
 // Types
 export interface CommitInfo {
@@ -91,6 +92,11 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
   // the rendered page is served from CURRENT disk (HtmlAppFrame URL mode), so it
   // may differ from this commit's snapshot — see the module note.
   const [htmlPreview, setHtmlPreview] = useState<{ content: string; filePath: string } | null>(null);
+  // Markdown preview overlay of the commit's "after" content (selection
+  // comments + send to AI), same modal as the status pane's.
+  const [mdPreview, setMdPreview] = useState<{ content: string; filePath: string } | null>(null);
+  const closeMdPreview = useCallback(() => setMdPreview(null), []);
+  const closeJsonPreview = useCallback(() => setJsonPreview(null), []);
   // 精简/全文 — pane-local, defaults to compact (same as StatusDiffPane).
   const [density, setDensity] = useState<'compact' | 'full'>('compact');
   // split/unified — pane-local, defaults to unified; not persisted (same policy
@@ -128,6 +134,12 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
           setHtmlPreview(null);
           return;
         }
+        // InteractiveMarkdownPreview closes itself on ESC too; this only keeps
+        // the same keypress from also closing the whole panel.
+        if (mdPreview) {
+          setMdPreview(null);
+          return;
+        }
         if (jsonPreview) {
           setJsonPreview(null);
           return;
@@ -141,7 +153,7 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isOpen, onClose, htmlPreview, jsonPreview, commitJsonSearch]);
+  }, [isOpen, onClose, htmlPreview, mdPreview, jsonPreview, commitJsonSearch]);
 
   // Load files when commit changes
   useEffect(() => {
@@ -347,11 +359,13 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
                     ? undefined
                     : isHtmlFile(fileDiff.filePath)
                       ? () => setHtmlPreview({ content: fileDiff.newContent, filePath: fileDiff.filePath })
+                      : isMarkdownFile(fileDiff.filePath)
+                        ? () => setMdPreview({ content: fileDiff.newContent, filePath: fileDiff.filePath })
                       : fileDiff.filePath.endsWith('.json')
                         ? () => setJsonPreview({ content: fileDiff.newContent, filePath: fileDiff.filePath })
                         : undefined
                 }
-                previewLabel={isHtmlFile(fileDiff.filePath) ? t('common.preview') : t('common.readable')}
+                previewLabel={fileDiff.filePath.endsWith('.json') ? t('common.readable') : t('common.preview')}
                 onContentSearch={onContentSearch}
               />
             ) : (
@@ -370,11 +384,13 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
                     ? undefined
                     : isHtmlFile(fileDiff.filePath)
                       ? () => setHtmlPreview({ content: fileDiff.newContent, filePath: fileDiff.filePath })
+                      : isMarkdownFile(fileDiff.filePath)
+                        ? () => setMdPreview({ content: fileDiff.newContent, filePath: fileDiff.filePath })
                       : fileDiff.filePath.endsWith('.json')
                         ? () => setJsonPreview({ content: fileDiff.newContent, filePath: fileDiff.filePath })
                         : undefined
                 }
-                previewLabel={isHtmlFile(fileDiff.filePath) ? t('common.preview') : t('common.readable')}
+                previewLabel={fileDiff.filePath.endsWith('.json') ? t('common.readable') : t('common.preview')}
                 onContentSearch={onContentSearch}
               />
             )
@@ -389,30 +405,12 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
   );
 
   const jsonPreviewModal = jsonPreview && (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-scrim" onClick={() => setJsonPreview(null)}>
-      <div
-        className="bg-card rounded-lg shadow-lv3 w-full max-w-[90%] h-[90%] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
-          <span className="text-sm text-muted-foreground font-mono truncate">{jsonPreview.filePath}</span>
-          <button
-            onClick={() => setJsonPreview(null)}
-            className="p-1 text-muted-foreground hover:text-foreground hover:bg-hover rounded transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <JsonSearchBar search={commitJsonSearch} />
-        <div className="flex-1 overflow-auto px-6 py-4 bg-secondary">
-          <pre ref={commitPreRef} className="whitespace-pre-wrap break-words font-mono text-foreground" style={{ fontSize: '0.8125rem', lineHeight: '1.5' }}>
-            {formatAsHumanReadable(jsonPreview.content)}
-          </pre>
-        </div>
-      </div>
-    </div>
+    <JsonPreviewModal
+      preview={jsonPreview}
+      onClose={closeJsonPreview}
+      search={commitJsonSearch}
+      preRef={commitPreRef}
+    />
   );
 
   // HTML preview modal — opening it is an explicit gesture → trusted. Own Portal overlay.
@@ -423,6 +421,22 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
       cwd={cwd}
       onClose={() => setHtmlPreview(null)}
     />
+  );
+
+  const mdPreviewModal = mdPreview && (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-scrim" onClick={closeMdPreview}>
+      <div
+        className="bg-card rounded-lg shadow-lv3 w-full max-w-[90%] h-full flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <InteractiveMarkdownPreview
+          content={mdPreview.content}
+          filePath={mdPreview.filePath}
+          cwd={cwd}
+          onClose={closeMdPreview}
+        />
+      </div>
+    </div>
   );
 
   // Embedded mode: no Modal wrapper or title bar, but has a close button in top-right
@@ -441,6 +455,7 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
         {content}
         {jsonPreviewModal}
         {htmlPreviewModal}
+        {mdPreviewModal}
       </div>
     );
   }
@@ -469,6 +484,7 @@ export function CommitDetailPanel({ isOpen, onClose, commit, cwd, embedded = fal
         {content}
         {jsonPreviewModal}
         {htmlPreviewModal}
+        {mdPreviewModal}
       </div>
     </div>
   );

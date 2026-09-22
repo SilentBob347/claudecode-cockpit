@@ -51,6 +51,7 @@ import type { RecentFileEntry } from '@/app/api/files/recent/route';
 import { BlockViewer, type BlockViewerHeaderState } from './fileBrowser/BlockViewer';
 import { BlockDiffViewer } from './fileBrowser/BlockDiffViewer';
 import { StatusDiffPane } from './fileBrowser/StatusDiffPane';
+import { JsonPreviewModal } from './fileBrowser/JsonPreviewModal';
 import { getTargetDirPath, formatDateTime, isImageFile, NOOP, COMMITS_PER_PAGE } from './fileBrowser/utils';
 import { GitImageDiffView } from './fileBrowser/GitImageDiffView';
 import { FilePathActions } from './fileBrowser/FilePathActions';
@@ -134,6 +135,9 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
   const [editorState, setEditorState] = useState({ isDirty: false, isSaving: false });
   const [showSearchPanel, setShowSearchPanel] = useState(false);
   const [jsonPreview, setJsonPreview] = useState<{ content: string; filePath: string } | null>(null);
+  // Markdown preview overlay for the history compare-mode diff. Rendered inside
+  // the compare pane (the status pane's modal is gated on activeTab === 'status').
+  const [compareMdPreview, setCompareMdPreview] = useState<{ content: string; filePath: string } | null>(null);
   // 精简/全文 for the branch-compare diff — pane-local, defaults to compact.
   const [compareDensity, setCompareDensity] = useState<'compact' | 'full'>('compact');
   // split/unified for compare-mode diff — pane-local, defaults to unified, not
@@ -250,6 +254,21 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
     return out;
   }, [gitStatus.status]);
   const gitHistory = useGitHistory({ cwd, addToRecentFiles: fileTree.addToRecentFiles });
+  // Compare-mode preview action: Markdown → interactive preview, JSON →
+  // readable view. Deleted files have no "after" side to preview.
+  const compareFileDiff = gitHistory.compareFileDiff;
+  const compareFilePath = compareFileDiff?.filePath ?? '';
+  const compareOnPreview = useMemo(() => {
+    if (!compareFileDiff || compareFileDiff.isDeleted) return undefined;
+    const payload = { content: compareFileDiff.newContent, filePath: compareFileDiff.filePath };
+    if (isMarkdownFile(compareFileDiff.filePath)) return () => setCompareMdPreview(payload);
+    if (compareFileDiff.filePath.endsWith('.json')) return () => setJsonPreview(payload);
+    return undefined;
+  }, [compareFileDiff]);
+  const closeCompareMdPreview = useCallback(() => setCompareMdPreview(null), []);
+  const closeJsonPreview = useCallback(() => setJsonPreview(null), []);
+  // A different compare file (or leaving compare mode) drops a stale preview.
+  useEffect(() => { setCompareMdPreview(null); }, [compareFileDiff]);
   // Totals for the compare-mode header. Binary files report 0/0 from numstat,
   // so they add nothing here, matching their per-row "+0 -0".
   const compareTotals = useMemo(() => {
@@ -749,6 +768,13 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
           jsonSearch.close();
           return;
         }
+        // Compare-mode Markdown preview → close it (InteractiveMarkdownPreview
+        // also closes itself on ESC; this just keeps ESC from reaching the
+        // double-ESC modal-close logic below).
+        if (compareMdPreview) {
+          setCompareMdPreview(null);
+          return;
+        }
         // jsonPreview modal → close modal
         if (jsonPreview) {
           setJsonPreview(null);
@@ -777,7 +803,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, fileTree.showBlame, fileTree.blameSelectedCommit, fileTree, showQuickOpen, lspReferences.visible, lspReferences.closeReferences, showSearchPanel, handleNavBack, handleNavForward, jsonSearch, jsonPreview, jsonPreviewSearch, activeTab, handleCopyFile, handlePaste, activeView, onViewChange]);
+  }, [onClose, fileTree.showBlame, fileTree.blameSelectedCommit, fileTree, showQuickOpen, lspReferences.visible, lspReferences.closeReferences, showSearchPanel, handleNavBack, handleNavForward, jsonSearch, jsonPreview, compareMdPreview, jsonPreviewSearch, activeTab, handleCopyFile, handlePaste, activeView, onViewChange]);
 
   // ========== Initial Data Load (once on mount) ==========
   useEffect(() => {
@@ -1851,8 +1877,8 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
             <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover:bg-brand transition-colors" />
           </div>
 
-          {/* Right Panel */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Right Panel — `relative` bounds the shared JSON preview overlay. */}
+          <div className="flex-1 flex flex-col overflow-hidden relative">
             {/* File Browser / Recent / Search - Right Panel */}
             {(activeTab === 'tree' || activeTab === 'search' || activeTab === 'recent') && (
               fileTree.blameSelectedCommit ? (
@@ -2447,10 +2473,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                     contentSearch.performContentSearch(query);
                   }}
                   locateInTree={locateInTree}
-                  jsonPreview={jsonPreview}
                   setJsonPreview={setJsonPreview}
-                  jsonPreviewSearch={jsonPreviewSearch}
-                  jsonPreviewPreRef={jsonPreviewPreRef}
                   onTokenHover={(line, column, rect) => runLSPTokenHover(gitStatus.statusDiff?.filePath, true, line, column, rect)}
                   onTokenHoverLeave={lspHover.onTokenMouseLeave}
                   onTokenHoverCancel={lspHover.clearHover}
@@ -2471,7 +2494,7 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                     {t('fileBrowser.loadingDiffContent')}
                   </div>
                 ) : gitHistory.compareFileDiff ? (
-                  <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex-1 flex flex-col overflow-hidden relative">
                     {/* Images render as before/after previews, so keep the path
                         actions but hide the diff-only toggles. */}
                     <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border flex-shrink-0">
@@ -2516,12 +2539,8 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                           cwd={cwd}
                           enableComments={true}
                           compact={compareDensity === 'compact'}
-                          onPreview={
-                            !gitHistory.compareFileDiff.isDeleted && gitHistory.compareFileDiff.filePath.endsWith('.json')
-                              ? () => setJsonPreview({ content: gitHistory.compareFileDiff!.newContent, filePath: gitHistory.compareFileDiff!.filePath })
-                              : undefined
-                          }
-                          previewLabel={t('common.readable')}
+                          onPreview={compareOnPreview}
+                          previewLabel={compareFilePath.endsWith('.json') ? t('common.readable') : t('common.preview')}
                           onContentSearch={(query) => {
                             setActiveTab('search');
                             contentSearch.setContentSearchQuery(query);
@@ -2538,12 +2557,8 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                           cwd={cwd}
                           enableComments={true}
                           compact={compareDensity === 'compact'}
-                          onPreview={
-                            !gitHistory.compareFileDiff.isDeleted && gitHistory.compareFileDiff.filePath.endsWith('.json')
-                              ? () => setJsonPreview({ content: gitHistory.compareFileDiff!.newContent, filePath: gitHistory.compareFileDiff!.filePath })
-                              : undefined
-                          }
-                          previewLabel={t('common.readable')}
+                          onPreview={compareOnPreview}
+                          previewLabel={compareFilePath.endsWith('.json') ? t('common.readable') : t('common.preview')}
                           onContentSearch={(query) => {
                             setActiveTab('search');
                             contentSearch.setContentSearchQuery(query);
@@ -2552,6 +2567,26 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                         />
                       )}
                     </div>
+                    {/* Compare-mode Markdown preview (selection comments + send to AI),
+                        same modal shape as the status pane's. */}
+                    {compareMdPreview && (
+                      <div
+                        className="absolute inset-0 z-50 flex items-center justify-center bg-scrim"
+                        onClick={() => setCompareMdPreview(null)}
+                      >
+                        <div
+                          className="bg-card rounded-lg shadow-lv3 w-full max-w-[90%] h-full flex flex-col"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <InteractiveMarkdownPreview
+                            content={compareMdPreview.content}
+                            filePath={compareMdPreview.filePath}
+                            cwd={cwd}
+                            onClose={closeCompareMdPreview}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-foreground-subtle">
@@ -2577,6 +2612,17 @@ function FileBrowserModalImpl({ onClose, cwd, initialTab = 'tree', tabSwitchTrig
                   <span>{t('fileBrowser.selectCommitToView')}</span>
                 </div>
               )
+            )}
+
+            {/* JSON readable preview — shared by the status tab and history
+                compare mode, so it lives here rather than inside either pane. */}
+            {jsonPreview && (
+              <JsonPreviewModal
+                preview={jsonPreview}
+                onClose={closeJsonPreview}
+                search={jsonPreviewSearch}
+                preRef={jsonPreviewPreRef}
+              />
             )}
           </div>
         </div>
