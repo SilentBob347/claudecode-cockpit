@@ -32,6 +32,408 @@ export interface Post {
 
 export const posts: Post[] = [
   {
+    slug: 'long-term-memory-is-a-directory',
+    date: '2026-09-22',
+    keywords: [
+      'AI agent long-term memory',
+      'agent memory without vector database',
+      'file based agent memory',
+      'model-agnostic agent memory',
+      'BOT.md',
+      'OpenCockpit Bots',
+      'Agent 长期记忆',
+      '文件原生记忆',
+      '跨模型 Agent 记忆',
+      '无向量数据库 Agent 记忆',
+    ],
+    content: {
+      en: {
+        title: 'Long-Term Memory Is Just a Directory',
+        description:
+          'Why OpenCockpit Bots store agent memory as a plain directory the model explores like a codebase, instead of a vector database or hidden memory runtime.',
+        readingTime: '7 min read',
+        body: `Talk about long-term memory for AI agents and most people picture vector databases, embeddings, knowledge graphs, automatic summarization, and elaborate policies for what gets written and what gets recalled.
+
+OpenCockpit Bots take a different path:
+
+> Long-term memory is a directory of state and context that the model can explore.
+
+A Bot does not try to decide for the model what counts as memory, and it does not ship a separate memory runtime. It provides one small, transparent mechanism: content worth reusing is saved, summoned, and carried forward in any session, with any model.
+
+## A Bot is not a prompt
+
+A Cockpit Bot is, first of all, an ordinary directory.
+
+\`\`\`text
+my-bot/
+├── BOT.md
+├── identity/
+│   ├── persona.md
+│   └── principles.md
+├── relationships/
+│   └── user.md
+├── memory/
+│   ├── facts.md
+│   └── procedures.md
+├── commitments/
+│   └── active.md
+└── projects/
+    └── project-a/
+        └── CONTEXT.md
+\`\`\`
+
+None of these folders are tables in a platform-defined schema. They are one way a user chose to organize things, and they can be added, removed, or restructured as needs change.
+
+\`BOT.md\` is the entry point. It describes who the Bot is, and it also tells the model:
+
+- what the Bot is responsible for;
+- which file holds what;
+- which files to read for which kind of task;
+- what may be written;
+- how to handle corrections, forgetting, and conflicts;
+- which Skills are available on demand.
+
+So \`BOT.md\` is not a persona prompt in the usual sense. It is closer to the index, router, and operating manual for a space of long-term context.
+
+## Summoned, not bound
+
+A Bot does not belong to a particular chat, and it is not tied to a particular model.
+
+You summon it with \`@name\` from any project and any session. Cockpit hands the model the Bot's entry point together with the current task; the model reads \`BOT.md\` and then explores the relevant folders according to the index and rules it finds there.
+
+The whole flow looks like this:
+
+\`\`\`text
+your task
+  ↓
+summon the Bot
+  ↓
+read BOT.md
+  ↓
+locate the folders and files this task needs
+  ↓
+explore, understand, and assemble the context
+  ↓
+do the work
+  ↓
+update long-term state when you authorize it
+\`\`\`
+
+The same Bot can be used by Claude today and picked up by Codex, GLM, Kimi, or a local model tomorrow. As long as a model can read files and follow \`BOT.md\`, the long-term context is never locked inside one vendor's private memory system.
+
+## The model is the retriever
+
+Cockpit Bots have no built-in vector search, embeddings, or knowledge graph. That does not mean there is no retrieval. The retrieval is model-driven exploration of a file system.
+
+Modern coding agents already solve this problem well. Dropped into an unfamiliar codebase, they do not stuff every file into context. They read the entry docs, look at the directory layout, search for keywords, follow references into the relevant files, and build up an understanding step by step.
+
+A Bot's long-term context uses exactly the same mechanism. \`BOT.md\` provides the high-level index, the directory structure provides information boundaries, file names and headings provide semantic cues, and the model decides where to dig based on the task at hand.
+
+This is retrieval that uses what the model can already do:
+
+- no retrieval service to deploy;
+- no embeddings to precompute;
+- no copy of your content in a second store;
+- no need for the platform to know in advance how you will organize memory;
+- no index to rebuild when the directory layout changes.
+
+To the model, it is not querying an unfamiliar memory API. It is exploring a codebase of context.
+
+## You define the Bot's cognitive environment
+
+Cockpit does not impose one memory structure on every Bot.
+
+A research Bot might organize itself around papers, evidence, conclusions, and open questions to verify. A project Bot might use decisions, progress, risks, and commitments. A personal assistant might use relationships, preferences, schedules, and long-term goals.
+
+What you define is not a handful of static memories but the Bot's long-term cognitive environment:
+
+- which information is worth keeping long term;
+- which is only relevant to one conversation;
+- where each kind of information lives;
+- what to read when answering which kind of question;
+- which sources are more trustworthy;
+- how new facts revise old ones;
+- what should expire or be forgotten;
+- which state needs follow-up later.
+
+The platform does not try to design a universal ontology that fits everyone. Files and Markdown are the lowest common denominator, and \`BOT.md\` lets each Bot have its own information architecture.
+
+## Explicit memory, not automatic absorption
+
+Many automatic memory systems continuously analyze conversations and decide on their own what to keep. That looks convenient, but it brings problems that are hard to avoid:
+
+- the model can write a misunderstanding down as a fact;
+- a passing thought can be stored as a lasting preference;
+- untrusted web pages or tool output can contaminate memory;
+- you cannot tell which memory influenced a given answer;
+- after deleting a memory, it is hard to confirm it no longer survives in some summary, index, or derived data.
+
+Cockpit Bots lean toward explicit authorization. Ordinary work is read-only by default. A Bot changes its long-term state only when you explicitly ask it to remember, update, correct, or forget something. What may be recorded, where it goes, and how older content is handled are decided by the Bot's own rules.
+
+That gives up some of the convenience of "it remembers everything for you" in exchange for a much clearer boundary of control:
+
+- what the long-term state is — open it and look;
+- why something was recorded — the source can be kept alongside it;
+- what was written wrong — fix it directly;
+- what you do not want kept — delete it, for real;
+- when things changed — trace it through diffs and version history.
+
+## The file system is the interface
+
+Plain files come with capabilities that elaborate memory systems tend to underestimate.
+
+- **Readable.** You do not need an admin console to check what a Bot knows.
+- **Editable.** Memory is not a black box that can only be changed indirectly through the model.
+- **Diffable.** Git and file diffs show exactly what a task changed.
+- **Portable.** Copy a directory and you have moved or backed up the Bot's identity and context.
+- **Model-agnostic.** The content is not hidden state owned by one vendor.
+- **Extensible.** Full-text search, embeddings, knowledge graphs, or other indexes can be layered on top later — as optional accelerators, not as a precondition for memory to exist.
+
+Even if every add-on service disappears, the contents of the directory remain complete, readable, and recoverable.
+
+## Minimal, but not left to sprawl
+
+The obvious worry about memory-as-a-directory is that it only grows: more files, older facts, until exploring it becomes slow and unreliable.
+
+Cockpit's answer is not a retrieval service bolted on top. It is having the Bot review itself:
+
+\`\`\`text
+@product review its memory
+\`\`\`
+
+A review is the one time the whole directory is read. It looks for:
+
+- **stale** entries — expired, or time-bound numbers, versions, and status confirmed long ago;
+- **contradictions** — classified first: a change over time, a difference in scope, a clash of authority, or a genuine conflict only you can settle;
+- dangling commitments, missing sources, duplicated information, and broken Skills;
+- **orphaned** conclusions — still marked active, though what they rested on has been superseded or disputed;
+- **oversized** context — the directory has outgrown the read rules in \`BOT.md\`.
+
+Size is handled with files too. An oversized file is split by subject, each split directory gets an \`INDEX.md\` with one line per entry, and \`BOT.md\` is rewritten to read the indexes first and open individual entries on demand. No budget arithmetic, no retrieval layer — the information architecture simply grows with the content.
+
+The findings are saved as a report under \`.reviews/\` and returned as a numbered list; nothing in long-term memory changes until you pick the rows to apply. Housekeeping follows the same rule as everything else: the model proposes, you decide, the files record.
+
+What remains is a genuine trade-off. Retrieval and write quality still depend on each model's tool use and instruction following. And low-latency processing of huge event streams is simply not the problem a directory is meant to solve. If it ever needs to be, caches or search can sit on top as rebuildable accelerators, with plain files still the source of truth.
+
+The key is not to invert that relationship: a vector database, a private schema, or one model's hidden state should never become the only place a Bot's memory lives.
+
+## Not a memory platform, but a memory substrate
+
+Judged as a complete memory platform that learns, organizes, and recalls automatically, Cockpit Bots would look like they are missing a lot of features. But that is not what they are trying to be.
+
+They provide a more basic layer:
+
+> A way for long-term context to outlive any single session and any single model, persisting as an ordinary directory.
+
+Cockpit makes a Bot findable, summonable, and hand-off-able to different sessions. \`BOT.md\` describes how the context is used. You define the structure that fits you. The model finds, understands, and updates the relevant content the way it would explore a codebase.
+
+The value of the design is not that it decides how you should remember. It is that the memory you define always belongs to you, and any suitable model can keep using it.
+
+The ideal long-term memory may not be an ever more complex, ever less visible intelligent database. It can just be a directory.
+
+A directory you can understand, a model can find its way around, a session can carry with it, and you will still be able to open years from now.
+
+[Read the Bots documentation](/en/docs/agent/bots/), or the previous post: [Bots: Persistent Subagents You Can Tag into Any Task](/en/blog/persistent-subagents-you-can-tag/).
+
+---
+
+**Try it:** \`npm i -g @surething/cockpit\` · [GitHub](https://github.com/Surething-io/cockpit) · [Try Online](/try)`,
+      },
+      zh: {
+        title: '把长期记忆做成一个目录：Cockpit Bots 的极简设计',
+        description:
+          '为什么 OpenCockpit Bots 不用向量数据库或隐藏的记忆运行时，而把长期记忆做成一个模型像探索代码库一样探索的普通目录。',
+        readingTime: '阅读约 7 分钟',
+        body: `谈到 AI Agent 的长期记忆，人们通常会想到向量数据库、Embedding、知识图谱、自动摘要，以及复杂的记忆写入和召回策略。
+
+OpenCockpit Bots 选择了另一条路：
+
+> 把长期记忆做成一个模型可以探索的状态上下文目录。
+
+它不试图替模型决定什么是记忆，也不建立一套独立的 Memory Runtime。它只提供一个足够小、足够透明的机制，让需要长期复用的内容可以在任意会话、任意模型中被保存、召唤和继续使用。
+
+## Bot 不是一段 Prompt
+
+一个 Cockpit Bot 首先是一个普通目录。
+
+\`\`\`text
+my-bot/
+├── BOT.md
+├── identity/
+│   ├── persona.md
+│   └── principles.md
+├── relationships/
+│   └── user.md
+├── memory/
+│   ├── facts.md
+│   └── procedures.md
+├── commitments/
+│   └── active.md
+└── projects/
+    └── project-a/
+        └── CONTEXT.md
+\`\`\`
+
+这些目录并非平台规定的数据库表。它们只是用户选择的一种组织方法，可以按照实际需要增加、删除或重构。
+
+其中，\`BOT.md\` 是整个 Bot 的入口。它不仅描述 Bot 是谁，还告诉模型：
+
+- 这个 Bot 负责什么；
+- 哪些文件保存了什么；
+- 遇到不同任务时应该读取哪些文件；
+- 哪些内容可以写入；
+- 如何处理纠正、遗忘和冲突；
+- 有哪些 Skills 可以按需使用。
+
+因此，\`BOT.md\` 并不是传统意义上的 persona prompt。更准确地说，它是这片长期上下文空间的索引、路由器和操作手册。
+
+## 召唤，而不是绑定
+
+Bot 不属于某个固定聊天，也不绑定某个模型。
+
+用户可以在任意项目、任意会话中用 \`@name\` 召唤它。Cockpit 将 Bot 的入口和当前任务交给模型，模型随后读取 \`BOT.md\`，再按照其中的索引和规则探索相关目录。
+
+整个过程可以概括为：
+
+\`\`\`text
+用户任务
+  ↓
+召唤 Bot
+  ↓
+读取 BOT.md
+  ↓
+根据任务定位相关目录和文件
+  ↓
+探索、理解并组合所需上下文
+  ↓
+完成任务
+  ↓
+在用户授权时更新长期状态
+\`\`\`
+
+同一个 Bot 可以先由 Claude 使用，之后由 Codex、GLM、Kimi 或本地模型继续处理。只要模型能够读取文件并遵循 \`BOT.md\`，长期上下文就不会被锁在某个模型的私有记忆系统里。
+
+## 模型本身就是检索器
+
+Cockpit Bots 没有预设向量检索、Embedding 或知识图谱，但这不意味着它没有检索。它采用的是模型驱动的文件系统探索式检索。
+
+现代代码 Agent 已经擅长处理类似问题：面对一个陌生代码库，它不会一次性把所有文件塞进上下文，而是先阅读入口文档，查看目录结构，搜索关键词，沿引用关系打开相关文件，再逐步形成对系统的理解。
+
+Bot 的长期上下文可以使用相同机制。\`BOT.md\` 提供高层索引，目录结构提供信息边界，文件名和章节提供语义线索，模型则根据当前任务决定应该深入哪里。
+
+这是一种原生利用模型能力的检索方式：
+
+- 不需要额外部署检索服务；
+- 不需要提前生成 Embedding；
+- 不需要将内容复制到另一套存储；
+- 不需要平台预先知道用户会如何组织记忆；
+- 目录结构发生变化后，也不必重建索引。
+
+对于模型来说，它不是在查询一个陌生的记忆 API，而是在探索一个上下文代码库。
+
+## 用户定义 Bot 的认知环境
+
+Cockpit 不规定所有 Bot 必须使用同一种记忆结构。
+
+一个研究 Bot 可能按照论文、证据、研究结论和待核验问题组织目录；一个项目 Bot 可能按照决策、进度、风险和承诺组织；一个私人助理则可能按照关系、偏好、日程和长期目标组织。
+
+用户真正定义的不是几条静态记忆，而是 Bot 的长期认知环境：
+
+- 哪些信息值得长期保存；
+- 哪些只是一次性会话内容；
+- 不同类型的信息放在哪里；
+- 回答什么问题时应该读取什么；
+- 什么来源更可信；
+- 新事实如何修正旧事实；
+- 哪些内容应该过期或被遗忘；
+- 哪些状态需要日后继续跟进。
+
+平台没有试图提前设计一套能够适合所有人的统一本体。文件和 Markdown 就是最低公分母，而 \`BOT.md\` 让每个 Bot 可以拥有自己的信息架构。
+
+## 显式记忆，而不是自动吸收
+
+很多自动记忆系统会持续分析对话，并自行决定保存哪些内容。这看起来方便，却会引入几个难以回避的问题：
+
+- 模型可能把误解写成事实；
+- 临时想法可能被当成长期偏好；
+- 不可信网页或工具输出可能污染记忆；
+- 用户不知道某个回答受到了哪条记忆影响；
+- 删除一条记忆后，很难确认它是否仍存在于摘要、索引或派生数据中。
+
+Cockpit Bots 更倾向于显式授权。普通工作默认只读。只有用户明确要求记住、更新、纠正或忘记时，Bot 才改变长期状态。什么可以记录、写到哪里以及如何处理旧内容，则由 Bot 自己的规则决定。
+
+这牺牲了一部分“什么都自动替你记住”的便利，却换来了更清楚的控制边界：
+
+- 长期状态是什么，可以直接打开查看；
+- 为什么会被记录，可以保留来源；
+- 写错了什么，可以直接修正；
+- 不想保留什么，可以明确删除；
+- 什么时候发生变化，可以通过 diff 或版本历史追踪。
+
+## 文件系统就是接口
+
+普通文件带来了一些经常被复杂记忆系统低估的能力。
+
+- **天然可读。** 用户不需要专用管理后台，就能检查 Bot 知道什么。
+- **天然可编辑。** 记忆不是只能通过模型间接修改的黑箱状态。
+- **天然可比较。** Git 和文件 diff 可以准确展示某次任务改变了什么。
+- **天然可迁移。** 复制一个目录，就能移动或备份 Bot 的身份和上下文。
+- **天然跨模型。** 内容不是某个供应商专用的隐藏状态。
+- **天然可扩展。** 未来可以在文件之上增加全文搜索、Embedding、知识图谱或其他索引，但这些都可以是可选加速层，而不是记忆存在的前提。
+
+即使所有附加服务消失，目录中的内容仍然完整、可读、可恢复。
+
+## 极简，但不放任增长
+
+目录式记忆最直接的担心是：它只会越积越多、越来越旧，最终让探索变得又慢又不可靠。
+
+Cockpit 的答案不是在目录之上再加一层检索服务，而是让 Bot 复盘自己：
+
+\`\`\`text
+@product 复盘一下
+\`\`\`
+
+复盘是唯一一次通读整个目录的时候。它会检查：
+
+- **过期**：超过有效期，或确认日期已经很旧的数字、版本、状态；
+- **矛盾**：先分类——是时间上的更替、适用范围不同、权威等级不同，还是只能由你裁决的真正冲突；
+- 悬空的承诺、缺失的来源、重复的内容、失效的 Skill；
+- **孤立结论**：依据已被替代或存疑，自己却仍标着 active；
+- **规模过大**：目录已经超出 \`BOT.md\` 的读取规则。
+
+规模问题同样用文件解决：把过大的文件按主题拆开，为每个拆分后的目录补一份每条一行的 \`INDEX.md\`，再改写 \`BOT.md\` 的读取规则——先读索引，按需打开具体条目。没有预算计算，没有检索层，只是让信息架构随内容一起长大。
+
+复盘结果以报告形式保存在 \`.reviews/\`，并返回一份编号清单；在你选定要应用的行之前，长期记忆不会改变。整理这件事也遵守同一条原则：模型提出，用户决定，文件记录。
+
+剩下的才是真实的取舍：检索与写入的质量仍取决于模型的工具能力和指令遵循水平；而低延迟处理海量事件流，本就不是一个目录要解决的问题。即使将来需要，也可以在目录之上叠加缓存或搜索作为可重建的加速层，普通文件依然是权威来源。
+
+关键是不要反过来：不应让某个向量数据库、私有 schema 或特定模型的隐藏状态成为 Bot 唯一的记忆载体。
+
+## 不是 Memory Platform，而是 Memory Substrate
+
+如果把 Cockpit Bots 当作一套自动学习、自动整理、自动召回的完整 Memory Platform，它会显得缺少许多复杂功能。但这并不是它试图成为的东西。
+
+它提供的是更基础的一层：
+
+> 一种让长期上下文脱离单次会话和单一模型，以普通目录形式持续存在的机制。
+
+Cockpit 负责让 Bot 能被找到、召唤和交给不同会话。\`BOT.md\` 负责描述这片上下文如何使用。用户负责定义适合自己的结构。模型负责像探索代码库一样寻找、理解和更新相关内容。
+
+这套设计的价值不在于替用户决定如何记忆，而在于确保用户定义的记忆始终属于用户，并且可以被任何合适的模型继续使用。
+
+最理想的长期记忆，也许并不是一个越来越复杂、越来越不可见的智能数据库。它也可以只是一个目录。
+
+一个用户看得懂、模型找得到、会话带得走、未来仍然能打开的目录。
+
+[查看 Bots 文档](/zh/docs/agent/bots/)，或阅读上一篇：[Bot：一个可以随时 @ 进任务的持久化子代理](/zh/blog/persistent-subagents-you-can-tag/)。
+
+---
+
+**立即尝试：** \`npm i -g @surething/cockpit\` · [GitHub](https://github.com/Surething-io/cockpit) · [在线体验](/try)`,
+      },
+    },
+  },
+  {
     slug: 'persistent-subagents-you-can-tag',
     date: '2026-09-18',
     keywords: [
