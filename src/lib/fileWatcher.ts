@@ -62,6 +62,24 @@ function resolveGitDir(cwd: string): string {
   return dotGit; // fallback
 }
 
+/**
+ * Resolve the common .git directory that holds shared refs.
+ * Normal repo: same as gitDir.
+ * Worktree: gitDir/commondir points at the main repo's .git (usually "../..").
+ * Branch refs live there, so a commit inside a worktree only rewrites
+ * <commonDir>/refs/heads/<branch> — the worktree's own HEAD is a symref that
+ * stays untouched. Watching only gitDir/refs therefore misses every commit.
+ */
+function resolveCommonDir(gitDir: string): string {
+  try {
+    const rel = readFileSync(join(gitDir, 'commondir'), 'utf-8').trim();
+    if (rel) return resolve(gitDir, rel);
+  } catch {
+    // No commondir file: not a worktree
+  }
+  return gitDir;
+}
+
 class FileWatcherManager {
   private watchers = new Map<string, WatcherEntry>();
 
@@ -208,10 +226,12 @@ class FileWatcherManager {
     }
 
     // ========== Watch key Git directories ==========
+    // refs are shared across worktrees, so they live in the common dir.
+    const commonDir = resolveCommonDir(gitDir);
     for (const gitDirName of GIT_WATCH_DIRS) {
       const dirName = gitDirName.replace('.git/', '');
       try {
-        const w = watch(join(gitDir, dirName), { recursive: true }, () => {
+        const w = watch(join(commonDir, dirName), { recursive: true }, () => {
           pushEvent({ type: 'git' });
         });
         w.on('error', () => {
