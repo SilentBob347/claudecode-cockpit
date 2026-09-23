@@ -53,6 +53,8 @@ interface UseChatStreamOptions {
   planMode?: boolean;
   /** Independent-task mode: send each user message with no prior history */
   noHistory?: boolean;
+  /** Output style id; '' / undefined = none. Resolved to text server-side. */
+  outputStyleId?: string;
   ollamaModel?: string;
   /** Model for the API-key engines (deepseek / kimi) — whichever of them is running. */
   engineModel?: EngineModelId;
@@ -104,7 +106,7 @@ interface UseChatStreamReturn {
 export function useChatStream(
   messages: ChatMessage[],
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
-  { sessionId, cwd, engine, planMode, noHistory, ollamaModel, engineModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, onSessionId, onFetchTitle, onRunComplete, taskStore }: UseChatStreamOptions
+  { sessionId, cwd, engine, planMode, noHistory, outputStyleId, ollamaModel, engineModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, onSessionId, onFetchTitle, onRunComplete, taskStore }: UseChatStreamOptions
 ): UseChatStreamReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
@@ -669,6 +671,8 @@ export function useChatStream(
             ...(usePlanMode && isClaudeEngine && { permissionMode: 'plan' }),
             // Independent task (see canDropHistory). Omitted when off.
             ...(canDropHistory && noHistory && { noHistory: true }),
+            // Output style: every engine appends it (orchestrator resolves id → text).
+            ...(outputStyleId && { outputStyleId }),
           }),
         });
 
@@ -718,7 +722,7 @@ export function useChatStream(
         setActiveRun(null);
       }
     },
-    [cwd, engine, planMode, noHistory, ollamaModel, engineModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, setMessages, endRun]
+    [cwd, engine, planMode, noHistory, outputStyleId, ollamaModel, engineModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, setMessages, endRun]
   );
 
   return {

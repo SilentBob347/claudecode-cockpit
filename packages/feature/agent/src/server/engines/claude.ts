@@ -102,6 +102,9 @@ export function planPermission(
 }
 
 /** Build claude SDK options for one attempt. */
+/** See the systemPrompt note in buildClaudeOptions. */
+const SYSTEM_PROMPT_SNAPSHOT = false;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function buildClaudeOptions(ctx: RunCtx, independent: boolean): BuildSdkOptions {
@@ -132,6 +135,25 @@ function buildClaudeOptions(ctx: RunCtx, independent: boolean): BuildSdkOptions 
     ...(model ? { model } : {}),
     ...(effort ? { effort } : {}),
     ...(settings ? { settings } : {}),
+    // System prompt: Claude Code's own preset, always. Omitting `systemPrompt` does NOT mean
+    // "Claude Code's default" — the Agent SDK then sends an EMPTY custom prompt (sdk.mjs:
+    // `systemPrompt === undefined → ""`), which is how sessions here ran without Claude Code's
+    // instructions for a long time unnoticed.
+    //
+    // Output style rides on it as `append`, so selecting one adds a little text after the
+    // preset instead of changing the base.
+    //
+    // `snapshot: false`: where system-prompt recording is enabled (a per-account rollout) the
+    // SDK records the prompt on a session's first request and replays it on every resume. That
+    // would ignore a style switched mid-session, and keep sessions recorded before this fix on
+    // their empty prompt until compaction. Rendering per request behaves the same on every
+    // account; an unchanged prompt renders byte-identical, so the prompt cache still hits.
+    systemPrompt: {
+      type: 'preset' as const,
+      preset: 'claude_code' as const,
+      ...(ctx.outputStyle ? { append: ctx.outputStyle } : {}),
+      snapshot: SYSTEM_PROMPT_SNAPSHOT,
+    },
     settingSources: ['user', 'project', 'local'] as Array<'user' | 'project' | 'local'>,
     // Permission mode: 'plan' (read-only) when requested, else skip all permission checks.
     permissionMode: (isPlan ? 'plan' : 'bypassPermissions') as 'plan' | 'bypassPermissions',

@@ -6,7 +6,13 @@
  * provider-agnostic. Anything provider-specific belongs in the engine spec.
  */
 
-export function buildSystemPrompt(cwd: string): string {
+export function buildSystemPrompt(cwd: string, outputStyle?: string): string {
+  const base = buildBasePrompt(cwd);
+  // Output style (server/lib/outputStyles.ts): appended last so it can refine the defaults above.
+  return outputStyle ? `${base}\n\n## Output style\n\n${outputStyle}` : base;
+}
+
+function buildBasePrompt(cwd: string): string {
   return `You are a coding agent. You help the user build and modify software using the provided tools.
 
 CWD: ${cwd}

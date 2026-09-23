@@ -93,7 +93,7 @@ export async function runBuiltinAgent(ctx: RunCtx, config: BuiltinAgentConfig): 
   const languageModel = await config.createModel(model);
   const result = streamText({
     model: languageModel,
-    system: buildSystemPrompt(cwd),
+    system: buildSystemPrompt(cwd, ctx.outputStyle),
     messages,
     tools: createTools(context),
     stopWhen: stepCountIs(256),

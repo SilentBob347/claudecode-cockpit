@@ -44,6 +44,9 @@ export interface TabInfo {
   planMode?: boolean;
   /** ollama only: send every user message with no prior history (independent task) */
   noHistory?: boolean;
+  /** Output style id appended to the system prompt. `''` = explicitly none;
+   *  `undefined` = not decided by this tab yet (see the save loop). */
+  outputStyle?: string;
 }
 
 interface GlobalSessionStatusSnapshot {
@@ -340,6 +343,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
         const savedCodexReasoningEfforts: Record<string, string> = data.codexReasoningEfforts || {};
         const savedPlanModes: Record<string, boolean> = data.planModes || {};
         const savedNoHistories: Record<string, boolean> = data.noHistories || {};
+        const savedOutputStyles: Record<string, string> = data.outputStyles || {};
 
         // The same-window target is written synchronously when selection changes,
         // so it survives refresh even if URL or project-state IO is still pending.
@@ -380,6 +384,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
               codexReasoningEffort: (savedCodexReasoningEfforts[sessionId] as CodexReasoningEffort) || prev?.codexReasoningEffort || undefined,
               planMode: savedPlanModes[sessionId] ?? prev?.planMode,
               noHistory: savedNoHistories[sessionId] ?? prev?.noHistory,
+              outputStyle: savedOutputStyles[sessionId] ?? prev?.outputStyle,
             };
           });
 
@@ -479,6 +484,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     const codexReasoningEfforts: Record<string, string> = {};
     const planModes: Record<string, boolean> = {};
     const noHistories: Record<string, boolean> = {};
+    const outputStyles: Record<string, string> = {};
     for (const tab of tabs) {
       if (tab.sessionId && tab.engine) {
         engines[tab.sessionId] = tab.engine;
@@ -523,6 +529,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       if (tab.sessionId) {
         if (tab.planMode !== undefined) planModes[tab.sessionId] = tab.planMode;
         if (tab.noHistory !== undefined) noHistories[tab.sessionId] = tab.noHistory;
+        if (tab.outputStyle !== undefined) outputStyles[tab.sessionId] = tab.outputStyle;
         if (tab.claudeFastMode !== undefined) claudeFastModes[tab.sessionId] = tab.claudeFastMode;
         if (tab.claudeThinking !== undefined) claudeThinkings[tab.sessionId] = tab.claudeThinking;
       }
@@ -562,6 +569,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       codexReasoningEfforts,
       planModes,
       noHistories,
+      outputStyles,
       ...(closedSessionIds.length ? { closedSessionIds } : {}),
     };
 
@@ -630,6 +638,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       const codexReasoningEfforts = (data.codexReasoningEfforts || {}) as Record<string, string>;
       const planModes = (data.planModes || {}) as Record<string, boolean>;
       const noHistories = (data.noHistories || {}) as Record<string, boolean>;
+      const outputStyles = (data.outputStyles || {}) as Record<string, string>;
 
       const prev = tabsRef.current;
       const closedSet = new Set(closedIds);
@@ -660,6 +669,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
         codexReasoningEffort: (codexReasoningEfforts[sid] as CodexReasoningEffort) || undefined,
         planMode: planModes[sid] || undefined,
         noHistory: noHistories[sid] || undefined,
+        outputStyle: outputStyles[sid] || undefined,
       }));
       let next = [...kept, ...added];
       // never leave the tab bar empty (tabs[0].id is read every render)
@@ -734,10 +744,11 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       codexReasoningEffort?: CodexReasoningEffort;
       planMode?: boolean;
       noHistory?: boolean;
+      outputStyle?: string;
       appendToEnd?: boolean;
     }
   ) => {
-    const { engine, ollamaModel, deepseekModel, kimiModel, glmModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, planMode, noHistory, appendToEnd = false } = opts ?? {};
+    const { engine, ollamaModel, deepseekModel, kimiModel, glmModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, planMode, noHistory, outputStyle, appendToEnd = false } = opts ?? {};
     const newTab: TabInfo = {
       id: `tab-${Date.now()}`,
       cwd,
@@ -756,6 +767,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       codexReasoningEffort,
       planMode,
       noHistory,
+      outputStyle,
     };
     setTabs((prev) => {
       if (appendToEnd) {
@@ -858,6 +870,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
         codexReasoningEffort: data?.codexReasoningEfforts?.[sid] as CodexReasoningEffort | undefined,
         planMode: data?.planModes?.[sid],
         noHistory: data?.noHistories?.[sid],
+        outputStyle: data?.outputStyles?.[sid],
         appendToEnd: true,
       });
     });
@@ -1030,6 +1043,15 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     setTabs((prev) =>
       prev.map((tab) =>
         tab.id === tabId ? { ...tab, noHistory } : tab
+      )
+    );
+  }, []);
+
+  // Output style (system-prompt appendix) for a tab. '' = none.
+  const updateTabOutputStyle = useCallback((tabId: string, outputStyle: string) => {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.id === tabId ? { ...tab, outputStyle } : tab
       )
     );
   }, []);
@@ -1244,6 +1266,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     updateTabCodexReasoningEffort,
     updateTabPlanMode,
     updateTabNoHistory,
+    updateTabOutputStyle,
 
     // Drag operations
     handleTabDragStart,

@@ -9,6 +9,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import type { EngineSpec, ImageData, RunCtx } from './types';
 import { mergeStashedCodexRollout, stashCodexRollout } from './shared/noHistoryRollout';
+import { syncCodexOutputStyle, wrapCodexOutputStyle } from './shared/codexOutputStyle';
 import {
   CODEX_AGENT_MESSAGE_TYPE,
   CODEX_IMAGE_ONLY_TEXT,
@@ -642,6 +643,12 @@ function codexThreadParams(ctx: RunCtx): Record<string, unknown> {
     ...(ctx.cwd ? { cwd: ctx.cwd } : {}),
     sandbox: 'danger-full-access',
     approvalPolicy: 'never',
+    // Output style. `developerInstructions` is appended to Codex's own instructions
+    // (`baseInstructions` would REPLACE them), but only on `thread/start` — resume ignores
+    // it. Mid-session switches are applied to the rollout instead (codexSpec.run →
+    // syncCodexOutputStyle). Wrapped in a marker so that sync can find it again. Still sent
+    // on resume: harmless, and the resume-failure fallback's thread/start reuses these params.
+    ...(ctx.outputStyle ? { developerInstructions: wrapCodexOutputStyle(ctx.outputStyle) } : {}),
   };
 }
 
@@ -897,12 +904,24 @@ export const codexSpec: EngineSpec = {
   // No preflight: the orchestrator's own "prompt or images" check is sufficient.
   runner: {
     async run(ctx: RunCtx) {
+      const sessionPath = ctx.sessionId ? findCodexSessionPath(ctx.sessionId) : null;
+      // Output style: bring the rollout in line with the current selection BEFORE anything
+      // else touches it (the noHistory stash below moves it aside). The session is idle here —
+      // the orchestrator admits one run per session and the Codex child is not spawned yet.
+      // Best effort: a failed sync must not cost the user the turn.
+      if (sessionPath) {
+        try {
+          syncCodexOutputStyle(sessionPath, ctx.outputStyle);
+        } catch (err) {
+          console.warn(`[codex] output style sync failed for ${sessionPath}: ${String(err)}`);
+        }
+      }
+
       if (ctx.params.noHistory !== true || !ctx.sessionId) {
         await runCodexAppServer(ctx);
         return;
       }
 
-      const sessionPath = findCodexSessionPath(ctx.sessionId);
       const stashed = sessionPath ? stashCodexRollout(sessionPath) : false;
       try {
         await runCodexAppServer(ctx);

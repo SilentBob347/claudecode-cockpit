@@ -37,6 +37,10 @@ export interface DispatchParams {
   //  - codex stashes the rollout and leaves a session_meta-only stub for the resumed turn
   //    (shared/noHistoryRollout.ts).
   noHistory?: boolean;
+  // Output style to append to the system prompt, by id (server/lib/outputStyles.ts). The
+  // orchestrator resolves it to text once per dispatch and hands it over as RunCtx.outputStyle;
+  // runners never read this field.
+  outputStyleId?: string;
   // Brand-new session with a caller-chosen id (session delegation). Unlike `sessionId`, which
   // means "resume this existing session", this names the session about to be created so the
   // caller can link to it before the engine starts. claude passes it to the SDK `sessionId`
@@ -62,6 +66,10 @@ export interface RunCtx {
   readonly cwd: string;                       // normalized, may be ''
   readonly sessionId: string | undefined;     // resume target (undefined → new session)
   readonly params: DispatchParams;            // pass-through (model / mode / permissionMode / engine)
+  /** Resolved output-style text to APPEND to the engine's own system prompt; undefined = inject
+   *  nothing. Each runner has exactly one place it goes (claude systemPrompt.append, codex
+   *  developerInstructions, built-in loop's buildSystemPrompt). */
+  readonly outputStyle?: string;
   readonly signal: AbortSignal;               // wire this to the engine's own cancellation
   /** Feed one event to the run registry (orchestrator: appendRun(currentKey, event)). */
   emit(event: RunEvent): void;

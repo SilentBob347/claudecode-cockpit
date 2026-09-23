@@ -41,6 +41,8 @@ interface ChatPanelProps {
   onPlanModeChange?: (tabId: string, planMode: boolean) => void;
   noHistory?: boolean;
   onNoHistoryChange?: (tabId: string, noHistory: boolean) => void;
+  outputStyle?: string;
+  onOutputStyleChange?: (tabId: string, outputStyle: string) => void;
   isActive?: boolean;
   /** Side-by-side: which of the two live panes owns externally-routed
    *  messages. Forwarded verbatim; see Chat's own prop doc. */
@@ -76,7 +78,7 @@ interface ChatPanelProps {
   onOpenFileLink?: (target: { path: string; lineNumber?: number }) => void;
 }
 
-export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode, onPlanModeChange, noHistory, onNoHistoryChange, isActive, isFocused, peerTabId, peerSide, refreshSignal, onStateChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink }: ChatPanelProps) {
+export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode, onPlanModeChange, noHistory, onNoHistoryChange, outputStyle, onOutputStyleChange, isActive, isFocused, peerTabId, peerSide, refreshSignal, onStateChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink }: ChatPanelProps) {
   const handleLoadingChange = useCallback((isLoading: boolean) => {
     onStateChange(tabId, { isLoading });
   }, [tabId, onStateChange]);
@@ -147,6 +149,9 @@ export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollam
   const handleNoHistoryChange = useCallback((v: boolean) => {
     onNoHistoryChange?.(tabId, v);
   }, [tabId, onNoHistoryChange]);
+  const handleOutputStyleChange = useCallback((v: string) => {
+    onOutputStyleChange?.(tabId, v);
+  }, [tabId, onOutputStyleChange]);
 
   const handleToggleFavorite = useCallback(() => {
     onToggleFavorite?.(tabId);
@@ -183,6 +188,8 @@ export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollam
       onPlanModeChange={handlePlanModeChange}
       noHistory={noHistory}
       onNoHistoryChange={handleNoHistoryChange}
+      outputStyle={outputStyle}
+      onOutputStyleChange={handleOutputStyleChange}
       hideHeader
       hideSidebar
       isActive={isActive}

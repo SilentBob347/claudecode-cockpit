@@ -233,6 +233,7 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
     updateTabCodexReasoningEffort,
     updateTabPlanMode,
     updateTabNoHistory,
+    updateTabOutputStyle,
     handleTabDragStart,
     handleTabDragOver,
     handleTabDrop,
@@ -826,6 +827,8 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
                           onPlanModeChange={updateTabPlanMode}
                           noHistory={tab.noHistory}
                           onNoHistoryChange={updateTabNoHistory}
+                          outputStyle={tab.outputStyle}
+                          onOutputStyleChange={updateTabOutputStyle}
                           isActive={isChatSurfaceActive(tab.id, paneTabIds, activeView === 'agent', pageVisible)}
                           isFocused={tab.id === activeTabId}
                           refreshSignal={sessionRefresh}
@@ -992,6 +995,8 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
                     onPlanModeChange={updateTabPlanMode}
                     noHistory={tab.noHistory}
                     onNoHistoryChange={updateTabNoHistory}
+                    outputStyle={tab.outputStyle}
+                    onOutputStyleChange={updateTabOutputStyle}
                     isActive={isChatSurfaceActive(tab.id, paneTabIds, true, pageVisible)}
                     isFocused={tab.id === activeTabId}
                     refreshSignal={sessionRefresh}
