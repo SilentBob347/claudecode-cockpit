@@ -332,6 +332,21 @@ serving whatever version was current when the template was last built.
 Nothing reports this. The sandbox boots, the demo works, it is just an old
 release. It is only caught by someone noticing the version pill.
 
+**Wait for the tarball first.** npm propagates in layers, and the tarball is
+last: in v1.0.278 the version doc and `dist-tags.latest` read `1.0.278` at +14
+min, but the tarball CDN still 404'd until +19 min — so a build started in that
+gap resolved `latest` fine and then died on `E404 … cockpit-1.0.278.tgz`,
+~1m40s into the template build. Metadata being current proves nothing here;
+gate on the tarball itself:
+
+```bash
+VER=$(node -p "require('./package.json').version")
+until [ "$(curl -s -o /dev/null -w '%{http_code}' \
+  "https://registry.npmjs.org/@surething/cockpit/-/cockpit-$VER.tgz")" = "200" ]; do
+  sleep 15
+done
+```
+
 ```bash
 cd e2b
 set -a && . ./.env && set +a          # or: export E2B_API_KEY=$(node -e "console.log(require('$HOME/.e2b/config.json').teamApiKey)")
@@ -349,6 +364,11 @@ The install layer echoes the version it resolved, so the log says it outright:
 
 A successful build showing the version you just published is enough. If it shows
 the previous one, npm's registry hadn't caught up — wait a minute and rebuild.
+
+`ERROR Build failed: error waiting for provisioning sandbox: context canceled`
+within the first ~10s is E2B-side and transient (v1.0.278 hit it three times in
+a row). It fails before any layer runs, so nothing about the package is
+implicated — wait a minute and rebuild.
 
 `try.ts` refers to the template by **name** (`cockpit-demo`), not by template or
 build id, so no code change and no website redeploy are needed — the next
