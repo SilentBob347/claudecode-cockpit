@@ -612,10 +612,11 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
   //
   // Scoped to the column by `contains`: the overscroll is reported for the
   // whole agent view, chat pane included, and dismissing a column the user
-  // was not touching would read as the app losing it. Note the gesture only
-  // reaches us once the diff's own code pane has run out of horizontal room —
-  // the switcher hands off to scrollable content first — which is what makes
-  // it behave the same over a wide diff as over a narrow one.
+  // was not touching would read as the app losing it. Note the gesture never
+  // reaches us over a code pane that overflows sideways — the switcher leaves
+  // any horizontal scroller its gestures outright, so the swipe scrolls the
+  // pane instead. Over a wide diff, dismiss from the file tree or the header,
+  // or use the ✕.
   const diffColumnRef = useRef<HTMLDivElement>(null);
   const handleOverscroll = useCallback((s: OverscrollState) => {
     const el = diffColumnRef.current;

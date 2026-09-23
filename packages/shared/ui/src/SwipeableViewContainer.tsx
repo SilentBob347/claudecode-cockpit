@@ -68,57 +68,69 @@ export interface OverscrollState {
 }
 
 /**
- * Can an ancestor still absorb a horizontal scroll going THIS way?
+ * Is the element, or any ancestor, a horizontal scroller with overflow?
  *
- * The direction is the whole point. Asking only "does this element overflow"
- * hands the gesture to a pane that is already pinned against the edge the
- * user is pushing toward, so a long-line code pane swallowed every horizontal
- * swipe forever — the view switcher was unreachable over wide diffs, and any
- * edge action behind it could never fire. Once a pane has no room left in the
- * direction of travel it stops being the right owner of the gesture, exactly
- * like nested vertical scrollers handing off at their end stops.
+ * Deliberately direction-blind: a pane that CAN scroll sideways owns every
+ * horizontal gesture that starts over it, even one pushing against an edge it
+ * is already pinned to. The swipe used to hand off at end stops instead, and
+ * that made the edge a trap — flick a wide table along, the last flick lands
+ * on the edge, the next one flips the whole view out from under the reader.
+ * An interrupted read costs far more than a missing shortcut, and the
+ * switcher is still one click away in the top bar.
  *
- * `deltaX > 0` is a scroll toward the right (content moves left).
+ * The price, paid knowingly: over a pane with long unwrapped lines (code
+ * viewer, diff) the swipe never switches views or reaches an edge action.
+ *
+ * Asked once per GESTURE, not per wheel event — see `resolveGestureOwner`.
  */
-function canScrollHorizontally(element: Element | null, deltaX: number): boolean {
+function hasHorizontalScroller(element: Element | null): boolean {
   while (element) {
-    const style = window.getComputedStyle(element);
-    const overflowX = style.overflowX;
-
-    // Check if horizontal scrolling is enabled
-    if (overflowX === 'auto' || overflowX === 'scroll') {
-      if (hasScrollRoom(element.scrollLeft, element.scrollWidth, element.clientWidth, deltaX)) {
-        return true;
-      }
+    const overflowX = window.getComputedStyle(element).overflowX;
+    // Sub-pixel layouts leave a fractional gap on panes that are visually
+    // flush; 1px of slack keeps those from counting as scrollable.
+    if (
+      (overflowX === 'auto' || overflowX === 'scroll') &&
+      element.scrollWidth - element.clientWidth > 1
+    ) {
+      return true;
     }
-
     element = element.parentElement;
   }
   return false;
 }
 
+/** Who a horizontal gesture belongs to: a scrollable pane, or the switcher. */
+export type GestureOwner = 'inner' | 'switcher';
+
 /**
- * Does a scroller with these metrics have room left in the direction of travel?
- *
- * Split out of the DOM walk above so the part that is easy to get backwards —
- * which end `deltaX > 0` consumes — is testable without a browser. Getting it
- * inverted does not crash or look obviously wrong; it just silently swaps
- * which edge hands the gesture on, so it is worth pinning down.
+ * Wheel silence that separates two gestures. Must outlast the widest gap
+ * between momentum events on a trackpad, or a coasting tail would be read as
+ * a fresh gesture and re-probed. Kept apart from the switcher's release
+ * timeout, which answers a different question ("has the user let go") and
+ * wants to be short.
  */
-export function hasScrollRoom(
-  scrollLeft: number,
-  scrollWidth: number,
-  clientWidth: number,
-  deltaX: number
-): boolean {
-  const max = scrollWidth - clientWidth;
-  // Sub-pixel layouts leave a fractional gap on panes that are visually
-  // flush; 1px of slack keeps those from counting as scrollable.
-  if (max <= 1) return false;
-  // deltaX > 0 scrolls toward the right, consuming the room to the right of
-  // the current position; a leftward scroll consumes scrollLeft itself.
-  const room = deltaX > 0 ? max - scrollLeft : scrollLeft;
-  return room > 1;
+export const GESTURE_IDLE_MS = 180;
+
+/**
+ * Decide the owner of this wheel event, latching it for the whole gesture.
+ *
+ * Browsers latch native nested scrolling the same way: whichever scroller a
+ * gesture starts on keeps it until the gesture ends. Without the latch, a
+ * swipe that starts on blank space and drifts over a table mid-flight would
+ * stall halfway through a view switch, and one that starts on a table and
+ * drifts off it would spend its momentum flipping the view.
+ *
+ * `probe` is only called when a new gesture starts, so the ancestor walk (a
+ * `getComputedStyle` per level) runs once per swipe instead of per frame.
+ */
+export function resolveGestureOwner(
+  now: number,
+  lastEventAt: number,
+  previous: GestureOwner | null,
+  probe: () => boolean
+): GestureOwner {
+  if (previous !== null && now - lastEventAt <= GESTURE_IDLE_MS) return previous;
+  return probe() ? 'inner' : 'switcher';
 }
 
 export function SwipeableViewContainer({ activeView, onViewChange, children, onOverscroll }: SwipeableViewContainerProps) {
@@ -131,6 +143,10 @@ export function SwipeableViewContainer({ activeView, onViewChange, children, onO
   // give the edge gesture a magnitude that can be thresholded.
   const overscrollRef = useRef(0);
   const overscrollTargetRef = useRef<Element | null>(null);
+  // Gesture latch (see resolveGestureOwner). Refs, not state: read and
+  // written on every wheel tick and never drawn.
+  const gestureOwnerRef = useRef<GestureOwner | null>(null);
+  const lastWheelAtRef = useRef(0);
   // Ref indirection: the handler is bound once per view change, and a host
   // passing an inline arrow must not force a rebind on every render.
   const onOverscrollRef = useRef(onOverscroll);
@@ -159,6 +175,9 @@ export function SwipeableViewContainer({ activeView, onViewChange, children, onO
   useEffect(() => {
     dragOffsetRef.current = 0;
     overscrollRef.current = 0;
+    // A different view has different panes under the pointer; whatever the
+    // last gesture latched onto is not there anymore.
+    gestureOwnerRef.current = null;
     queueMicrotask(() => setDragOffsetPx(0));
   }, [activeView]);
 
@@ -170,11 +189,19 @@ export function SwipeableViewContainer({ activeView, onViewChange, children, onO
         // Do not intercept scroll events inside iframes
         const target = e.target as Element;
         if (target.tagName === 'IFRAME') return;
-        // Smart check: if the target is inside a horizontally-scrollable element, let it handle the scroll
-        if (canScrollHorizontally(target, e.deltaX)) {
-          // Let the element handle horizontal scrolling itself
-          return;
-        }
+        // A gesture that starts over a horizontal scroller belongs to it
+        // outright, end stops included; travel it cannot use is dropped
+        // rather than spent on switching views.
+        const now = performance.now();
+        const owner = resolveGestureOwner(
+          now,
+          lastWheelAtRef.current,
+          gestureOwnerRef.current,
+          () => hasHorizontalScroller(target)
+        );
+        gestureOwnerRef.current = owner;
+        lastWheelAtRef.current = now;
+        if (owner === 'inner') return;
 
         e.preventDefault();
         e.stopPropagation();
