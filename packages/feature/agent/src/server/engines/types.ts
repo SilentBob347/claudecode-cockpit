@@ -19,7 +19,6 @@ export interface DispatchParams {
   engine?: string;
   model?: string;
   claudeEffort?: string;
-  claudeContextWindow?: string;
   claudeFastMode?: boolean;
   claudeThinking?: boolean;
   codexReasoningEffort?: string;

@@ -227,7 +227,6 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
     updateTabGlmModel,
     updateTabClaudeModel,
     updateTabClaudeEffort,
-    updateTabClaudeContextWindow,
     updateTabClaudeFastMode,
     updateTabClaudeThinking,
     updateTabCodexModel,
@@ -815,8 +814,6 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
                           onClaudeModelChange={updateTabClaudeModel}
                           claudeEffort={tab.claudeEffort}
                           onClaudeEffortChange={updateTabClaudeEffort}
-                          claudeContextWindow={tab.claudeContextWindow}
-                          onClaudeContextWindowChange={updateTabClaudeContextWindow}
                           claudeFastMode={tab.claudeFastMode}
                           onClaudeFastModeChange={updateTabClaudeFastMode}
                           claudeThinking={tab.claudeThinking}
@@ -983,8 +980,6 @@ export function TabManager({ initialCwd, initialSessionId, initialBlank, initial
                     onClaudeModelChange={updateTabClaudeModel}
                     claudeEffort={tab.claudeEffort}
                     onClaudeEffortChange={updateTabClaudeEffort}
-                    claudeContextWindow={tab.claudeContextWindow}
-                    onClaudeContextWindowChange={updateTabClaudeContextWindow}
                     claudeFastMode={tab.claudeFastMode}
                     onClaudeFastModeChange={updateTabClaudeFastMode}
                     claudeThinking={tab.claudeThinking}

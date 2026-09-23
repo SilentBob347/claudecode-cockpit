@@ -16,7 +16,6 @@ import type {
   EngineModelId,
   ClaudeModelId,
   ClaudeEffort,
-  ClaudeContextWindow,
   CodexModelId,
   CodexReasoningEffort,
 } from './types';
@@ -59,7 +58,6 @@ interface UseChatStreamOptions {
   engineModel?: EngineModelId;
   claudeModel?: ClaudeModelId;
   claudeEffort?: ClaudeEffort;
-  claudeContextWindow?: ClaudeContextWindow;
   claudeFastMode?: boolean;
   claudeThinking?: boolean;
   codexModel?: CodexModelId;
@@ -106,7 +104,7 @@ interface UseChatStreamReturn {
 export function useChatStream(
   messages: ChatMessage[],
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
-  { sessionId, cwd, engine, planMode, noHistory, ollamaModel, engineModel, claudeModel, claudeEffort, claudeContextWindow, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, onSessionId, onFetchTitle, onRunComplete, taskStore }: UseChatStreamOptions
+  { sessionId, cwd, engine, planMode, noHistory, ollamaModel, engineModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, onSessionId, onFetchTitle, onRunComplete, taskStore }: UseChatStreamOptions
 ): UseChatStreamReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
@@ -662,7 +660,6 @@ export function useChatStream(
             ...(isApiKeyEngine && engineModel && { model: engineModel }),
             ...(isClaudeEngine && claudeModel && { model: claudeModel }),
             ...(isClaudeEngine && claudeEffort && { claudeEffort }),
-            ...(isClaudeEngine && claudeContextWindow && { claudeContextWindow }),
             ...(isClaudeEngine && claudeFastMode !== undefined && { claudeFastMode }),
             ...(isClaudeEngine && claudeThinking !== undefined && { claudeThinking }),
             ...(engine === 'codex' && codexModel && { model: codexModel }),
@@ -721,7 +718,7 @@ export function useChatStream(
         setActiveRun(null);
       }
     },
-    [cwd, engine, planMode, noHistory, ollamaModel, engineModel, claudeModel, claudeEffort, claudeContextWindow, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, setMessages, endRun]
+    [cwd, engine, planMode, noHistory, ollamaModel, engineModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, setMessages, endRun]
   );
 
   return {

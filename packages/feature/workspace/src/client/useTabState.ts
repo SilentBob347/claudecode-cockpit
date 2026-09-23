@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { usePageVisible, useWebSocket } from '@cockpit/shared-ui';
-import type { ChatEngine, DeepseekModel, EngineModelId, ClaudeModelId, ClaudeEffort, ClaudeContextWindow, CodexModelId, CodexReasoningEffort } from '@cockpit/feature-agent';
+import type { ChatEngine, DeepseekModel, EngineModelId, ClaudeModelId, ClaudeEffort, CodexModelId, CodexReasoningEffort } from '@cockpit/feature-agent';
 import { publishTopic } from '@cockpit/effect-react';
 import { Topics } from '@cockpit/effect-services';
 import { Effect } from 'effect';
@@ -37,7 +37,6 @@ export interface TabInfo {
   glmModel?: EngineModelId;
   claudeModel?: ClaudeModelId;
   claudeEffort?: ClaudeEffort;
-  claudeContextWindow?: ClaudeContextWindow;
   claudeFastMode?: boolean;
   claudeThinking?: boolean;
   codexModel?: CodexModelId;
@@ -335,7 +334,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
         const savedGlmModels: Record<string, string> = data.glmModels || {};
         const savedClaudeModels: Record<string, string> = data.claudeModels || {};
         const savedClaudeEfforts: Record<string, string> = data.claudeEfforts || {};
-        const savedClaudeContextWindows: Record<string, string> = data.claudeContextWindows || {};
         const savedClaudeFastModes: Record<string, boolean> = data.claudeFastModes || {};
         const savedClaudeThinkings: Record<string, boolean> = data.claudeThinkings || {};
         const savedCodexModels: Record<string, string> = data.codexModels || {};
@@ -376,7 +374,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
               glmModel: (savedGlmModels[sessionId] as EngineModelId) || prev?.glmModel || undefined,
               claudeModel: (savedClaudeModels[sessionId] as ClaudeModelId) || prev?.claudeModel || undefined,
               claudeEffort: (savedClaudeEfforts[sessionId] as ClaudeEffort) || prev?.claudeEffort || undefined,
-              claudeContextWindow: (savedClaudeContextWindows[sessionId] as ClaudeContextWindow) || prev?.claudeContextWindow || undefined,
               claudeFastMode: savedClaudeFastModes[sessionId] ?? prev?.claudeFastMode,
               claudeThinking: savedClaudeThinkings[sessionId] ?? prev?.claudeThinking,
               codexModel: (savedCodexModels[sessionId] as CodexModelId) || prev?.codexModel || undefined,
@@ -476,7 +473,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     const glmModels: Record<string, string> = {};
     const claudeModels: Record<string, string> = {};
     const claudeEfforts: Record<string, string> = {};
-    const claudeContextWindows: Record<string, string> = {};
     const claudeFastModes: Record<string, boolean> = {};
     const claudeThinkings: Record<string, boolean> = {};
     const codexModels: Record<string, string> = {};
@@ -504,9 +500,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       }
       if (tab.sessionId && tab.claudeEffort) {
         claudeEfforts[tab.sessionId] = tab.claudeEffort;
-      }
-      if (tab.sessionId && tab.claudeContextWindow) {
-        claudeContextWindows[tab.sessionId] = tab.claudeContextWindow;
       }
       if (tab.sessionId && tab.codexModel) {
         codexModels[tab.sessionId] = tab.codexModel;
@@ -563,7 +556,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       glmModels,
       claudeModels,
       claudeEfforts,
-      claudeContextWindows,
       claudeFastModes,
       claudeThinkings,
       codexModels,
@@ -632,7 +624,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       const glmModels = (data.glmModels || {}) as Record<string, string>;
       const claudeModels = (data.claudeModels || {}) as Record<string, string>;
       const claudeEfforts = (data.claudeEfforts || {}) as Record<string, string>;
-      const claudeContextWindows = (data.claudeContextWindows || {}) as Record<string, string>;
       const claudeFastModes = (data.claudeFastModes || {}) as Record<string, boolean>;
       const claudeThinkings = (data.claudeThinkings || {}) as Record<string, boolean>;
       const codexModels = (data.codexModels || {}) as Record<string, string>;
@@ -663,7 +654,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
         glmModel: (glmModels[sid] as EngineModelId) || undefined,
         claudeModel: (claudeModels[sid] as ClaudeModelId) || undefined,
         claudeEffort: (claudeEfforts[sid] as ClaudeEffort) || undefined,
-        claudeContextWindow: (claudeContextWindows[sid] as ClaudeContextWindow) || undefined,
         claudeFastMode: claudeFastModes[sid] ?? undefined,
         claudeThinking: claudeThinkings[sid] ?? undefined,
         codexModel: (codexModels[sid] as CodexModelId) || undefined,
@@ -738,7 +728,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       glmModel?: EngineModelId;
       claudeModel?: ClaudeModelId;
       claudeEffort?: ClaudeEffort;
-      claudeContextWindow?: ClaudeContextWindow;
       claudeFastMode?: boolean;
       claudeThinking?: boolean;
       codexModel?: CodexModelId;
@@ -748,7 +737,7 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       appendToEnd?: boolean;
     }
   ) => {
-    const { engine, ollamaModel, deepseekModel, kimiModel, glmModel, claudeModel, claudeEffort, claudeContextWindow, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, planMode, noHistory, appendToEnd = false } = opts ?? {};
+    const { engine, ollamaModel, deepseekModel, kimiModel, glmModel, claudeModel, claudeEffort, claudeFastMode, claudeThinking, codexModel, codexReasoningEffort, planMode, noHistory, appendToEnd = false } = opts ?? {};
     const newTab: TabInfo = {
       id: `tab-${Date.now()}`,
       cwd,
@@ -761,7 +750,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       glmModel,
       claudeModel,
       claudeEffort,
-      claudeContextWindow,
       claudeFastMode,
       claudeThinking,
       codexModel,
@@ -864,7 +852,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
         glmModel: data?.glmModels?.[sid] as EngineModelId | undefined,
         claudeModel: data?.claudeModels?.[sid] as ClaudeModelId | undefined,
         claudeEffort: data?.claudeEfforts?.[sid] as ClaudeEffort | undefined,
-        claudeContextWindow: data?.claudeContextWindows?.[sid] as ClaudeContextWindow | undefined,
         claudeFastMode: data?.claudeFastModes?.[sid],
         claudeThinking: data?.claudeThinkings?.[sid],
         codexModel: data?.codexModels?.[sid] as CodexModelId | undefined,
@@ -997,14 +984,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     );
   }, []);
 
-  const updateTabClaudeContextWindow = useCallback((tabId: string, claudeContextWindow: ClaudeContextWindow) => {
-    setTabs((prev) =>
-      prev.map((tab) =>
-        tab.id === tabId ? { ...tab, claudeContextWindow } : tab
-      )
-    );
-  }, []);
-
   const updateTabClaudeFastMode = useCallback((tabId: string, claudeFastMode: boolean) => {
     setTabs((prev) =>
       prev.map((tab) =>
@@ -1068,7 +1047,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
       glmModel: source?.glmModel,
       claudeModel: source?.claudeModel,
       claudeEffort: source?.claudeEffort,
-      claudeContextWindow: source?.claudeContextWindow,
       claudeFastMode: source?.claudeFastMode,
       claudeThinking: source?.claudeThinking,
       codexModel: source?.codexModel,
@@ -1260,7 +1238,6 @@ export function useTabState({ initialCwd, initialSessionId, initialBlank, active
     updateTabGlmModel,
     updateTabClaudeModel,
     updateTabClaudeEffort,
-    updateTabClaudeContextWindow,
     updateTabClaudeFastMode,
     updateTabClaudeThinking,
     updateTabCodexModel,

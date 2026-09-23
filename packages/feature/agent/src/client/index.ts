@@ -94,7 +94,6 @@ export type {
   DeepseekModel,
   ClaudeModelId,
   ClaudeEffort,
-  ClaudeContextWindow,
   CodexModelId,
   CodexReasoningEffort,
 } from './types';

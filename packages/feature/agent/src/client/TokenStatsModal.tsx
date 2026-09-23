@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { BrowserRuntime } from '@cockpit/effect-runtime';
 import { useEscToClose, useTheme } from '@cockpit/shared-ui';
 import { loadClaudeStats } from './effect/agentClient';
+import { formatModelLabel } from './modelLabel';
 
 interface TokenStatsModalProps {
   isOpen: boolean;
@@ -15,14 +16,15 @@ interface TokenStatsModalProps {
 // Pricing only: model colors are derived separately (see assignColors) so a new
 // model never has to be added here just to get a distinct color.
 // Cache read is 0.1x base input and cache write (5m) is 1.25x on every model
-// EXCEPT Fable/Mythos 5.1, where reads are 0.025x — the one row you cannot
-// derive from the input price, and the reason the fable/mythos fallback below
-// cannot be trusted for a 5.1-and-later id.
+// EXCEPT Fable/Mythos 5.1 (reads 0.025x) and Opus 5.5 (reads 0.05x) — the rows
+// you cannot derive from the input price, and the reason neither family
+// fallback below can be trusted for a 5.1-and-later id.
 const MODEL_PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
   'claude-fable-5-1':  { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.50 },
   'claude-mythos-5-1': { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.50 },
   'claude-fable-5':    { input: 10, output: 50, cacheRead: 1.00, cacheWrite: 12.50 },
   'claude-mythos-5':   { input: 10, output: 50, cacheRead: 1.00, cacheWrite: 12.50 },
+  'claude-opus-5-5':   { input: 4,  output: 20, cacheRead: 0.20, cacheWrite: 5.00 },
   'claude-opus-5':     { input: 5,  output: 25, cacheRead: 0.50, cacheWrite: 6.25 },
   'claude-opus-4-8':   { input: 5,  output: 25, cacheRead: 0.50, cacheWrite: 6.25 },
   'claude-opus-4-7':   { input: 5,  output: 25, cacheRead: 0.50, cacheWrite: 6.25 },
@@ -48,17 +50,6 @@ function getPricing(modelId: string) {
   if (lower.includes('opus')) return { input: 5, output: 25, cacheRead: 0.50, cacheWrite: 6.25 };
   if (lower.includes('haiku')) return { input: 1, output: 5, cacheRead: 0.10, cacheWrite: 1.25 };
   return DEFAULT_PRICING;  // sonnet and anything unknown
-}
-
-// `claude-opus-4-8-20260101` -> `Opus 4.8`. A hyphen between two digits is a
-// version separator (becomes a dot); every other hyphen is a word separator.
-function getLabel(modelId: string) {
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/-\d{8}$/, '')
-    .replace(/(\d)-(?=\d)/g, '$1.')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 // Categorical palette: no model-family semantics, just 8 hues validated as a set
@@ -496,7 +487,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
       .filter(([id]) => !id.startsWith('<'))  // skip <synthetic> etc.
       .map(([id, usage]) => ({
         id,
-        label: getLabel(id),
+        label: formatModelLabel(id),
         color: modelColors[id],
         usage,
         cost: calcCost(id, usage),
@@ -544,7 +535,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
         labels: tokenLabels,
         datasets: allModelIds.map(id => ({
           id,
-          label: getLabel(id),
+          label: formatModelLabel(id),
           data: slicedTokens.map(d => d.tokensByModel[id] || 0),
           color: modelColors[id],
         })),
@@ -555,7 +546,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
         labels: tokenLabels,
         datasets: allModelIds.map(id => ({
           id,
-          label: getLabel(id),
+          label: formatModelLabel(id),
           data: slicedTokens.map(d => (d.tokensByModel[id] || 0) * (costPerToken[id] || 0)),
           color: modelColors[id],
         })),
@@ -580,7 +571,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
         labels,
         datasets: allModelIds.map(id => ({
           id,
-          label: getLabel(id),
+          label: formatModelLabel(id),
           data: weeks.map(w => w.tokensByModel[id] || 0),
           color: modelColors[id],
         })),
@@ -590,7 +581,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
         labels,
         datasets: allModelIds.map(id => ({
           id,
-          label: getLabel(id),
+          label: formatModelLabel(id),
           data: weeks.map(w => (w.tokensByModel[id] || 0) * (costPerToken[id] || 0)),
           color: modelColors[id],
         })),
@@ -615,7 +606,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
       labels,
       datasets: allModelIds.map(id => ({
         id,
-        label: getLabel(id),
+        label: formatModelLabel(id),
         data: months.map(m => m.tokensByModel[id] || 0),
         color: modelColors[id],
       })),
@@ -625,7 +616,7 @@ export function TokenStatsModal({ isOpen, onClose }: TokenStatsModalProps) {
       labels,
       datasets: allModelIds.map(id => ({
         id,
-        label: getLabel(id),
+        label: formatModelLabel(id),
         data: months.map(m => (m.tokensByModel[id] || 0) * (costPerToken[id] || 0)),
         color: modelColors[id],
       })),

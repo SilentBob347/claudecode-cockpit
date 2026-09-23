@@ -9,19 +9,18 @@ import {
   EngineIcon,
   EnginePickerTrigger,
 } from './engineAccents';
+import { formatCodexModelLabel, formatModelLabel } from './modelLabel';
 import type {
   ChatEngine,
-  ClaudeContextWindow,
   ClaudeEffort,
   ClaudeModelId,
   CodexModelId,
   CodexReasoningEffort,
 } from './types';
 
-export const DEFAULT_CLAUDE_MODEL: ClaudeModelId = 'claude-opus-5';
+export const DEFAULT_CLAUDE_MODEL: ClaudeModelId = 'claude-opus-5-5';
 export const DEFAULT_CLAUDE_EFFORT: ClaudeEffort = 'high';
-export const DEFAULT_CLAUDE_CONTEXT_WINDOW: ClaudeContextWindow = '200k';
-export const DEFAULT_CODEX_MODEL: CodexModelId = 'gpt-5.6-sol';
+export const DEFAULT_CODEX_MODEL: CodexModelId = 'gpt-6-sol';
 export const DEFAULT_CODEX_REASONING_EFFORT: CodexReasoningEffort = 'low';
 
 const CLAUDE_EFFORTS: ReadonlyArray<{ id: ClaudeEffort; label: string }> = [
@@ -39,8 +38,6 @@ const CLAUDE_MODELS: ReadonlyArray<{
   label: string;
   effort?: ReadonlyArray<ClaudeEffort>;
   defaultEffort?: ClaudeEffort;
-  context?: ReadonlyArray<ClaudeContextWindow>;
-  defaultContext?: ClaudeContextWindow;
   thinking?: boolean;
   fast?: boolean;
 }> = [
@@ -49,16 +46,22 @@ const CLAUDE_MODELS: ReadonlyArray<{
     label: 'Claude Sonnet 5',
     effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultrathink'],
     defaultEffort: 'high',
-    context: ['200k', '1m'],
-    defaultContext: '200k',
+  },
+  {
+    id: 'claude-opus-5-5',
+    label: 'Claude Opus 5.5',
+    effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode', 'ultrathink'],
+    // `medium`, not `high`: Opus 5.5 is the one model in the lineup whose own
+    // default is a step lower, and Claude Code follows it. A top-level
+    // `effortLevel` deliberately does not carry over to this model.
+    defaultEffort: 'medium',
+    fast: true,
   },
   {
     id: 'claude-opus-5',
     label: 'Claude Opus 5',
     effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode', 'ultrathink'],
     defaultEffort: 'high',
-    context: ['200k', '1m'],
-    defaultContext: '1m',
     fast: true,
   },
   {
@@ -66,53 +69,11 @@ const CLAUDE_MODELS: ReadonlyArray<{
     label: 'Claude Fable 5.1',
     effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode', 'ultrathink'],
     defaultEffort: 'high',
-    context: ['200k', '1m'],
-    defaultContext: '1m',
-  },
-  {
-    id: 'claude-fable-5',
-    label: 'Claude Fable 5',
-    effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode', 'ultrathink'],
-    defaultEffort: 'high',
-    context: ['200k', '1m'],
-    defaultContext: '1m',
-  },
-  {
-    id: 'claude-opus-4-8',
-    label: 'Claude Opus 4.8',
-    effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultracode', 'ultrathink'],
-    defaultEffort: 'high',
-    fast: true,
-  },
-  {
-    id: 'claude-opus-4-7',
-    label: 'Claude Opus 4.7',
-    effort: ['low', 'medium', 'high', 'xhigh', 'max', 'ultrathink'],
-    defaultEffort: 'xhigh',
-    fast: true,
-  },
-  {
-    id: 'claude-opus-4-6',
-    label: 'Claude Opus 4.6',
-    effort: ['low', 'medium', 'high', 'max', 'ultrathink'],
-    defaultEffort: 'high',
-    context: ['200k', '1m'],
-    defaultContext: '1m',
-    fast: true,
-  },
-  {
-    id: 'claude-sonnet-4-6',
-    label: 'Claude Sonnet 4.6',
-    effort: ['low', 'medium', 'high', 'max', 'ultrathink'],
-    defaultEffort: 'high',
-    context: ['200k', '1m'],
-    defaultContext: '200k',
   },
   { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', thinking: true },
 ];
 
 const CODEX_REASONING: ReadonlyArray<{ id: CodexReasoningEffort; label: string }> = [
-  { id: 'minimal', label: 'Minimal' },
   { id: 'low', label: 'Low' },
   { id: 'medium', label: 'Medium' },
   { id: 'high', label: 'High' },
@@ -127,6 +88,9 @@ const CODEX_MODELS: ReadonlyArray<{
   reasoning: ReadonlyArray<CodexReasoningEffort>;
   defaultReasoning: CodexReasoningEffort;
 }> = [
+  // Labels, effort sets and defaults mirror the model catalog codex ships in
+  // its own binary, so a row here says what codex itself would say. `ultra` is
+  // per-model there and Luna does not have it.
   {
     id: 'gpt-6-astra',
     label: 'GPT-6-Astra',
@@ -134,22 +98,22 @@ const CODEX_MODELS: ReadonlyArray<{
     defaultReasoning: 'low',
   },
   {
+    id: 'gpt-6-sol',
+    label: 'GPT-6-Sol',
+    reasoning: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    defaultReasoning: 'medium',
+  },
+  {
+    id: 'gpt-6-luna',
+    label: 'GPT-6-Luna',
+    reasoning: ['low', 'medium', 'high', 'xhigh', 'max'],
+    defaultReasoning: 'medium',
+  },
+  {
     id: 'gpt-5.6-sol',
     label: 'GPT-5.6-Sol',
     reasoning: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-    defaultReasoning: 'medium',
-  },
-  {
-    id: 'gpt-5.6-terra',
-    label: 'GPT-5.6-Terra',
-    reasoning: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
-    defaultReasoning: 'medium',
-  },
-  {
-    id: 'gpt-5.6-luna',
-    label: 'GPT-5.6-Luna',
-    reasoning: ['low', 'medium', 'high', 'xhigh', 'max'],
-    defaultReasoning: 'medium',
+    defaultReasoning: 'low',
   },
 ];
 
@@ -178,8 +142,6 @@ interface AgentModelTraitsPickerProps {
   onClaudeModelChange?: (model: ClaudeModelId) => void;
   claudeEffort?: ClaudeEffort;
   onClaudeEffortChange?: (effort: ClaudeEffort) => void;
-  claudeContextWindow?: ClaudeContextWindow;
-  onClaudeContextWindowChange?: (contextWindow: ClaudeContextWindow) => void;
   claudeFastMode?: boolean;
   onClaudeFastModeChange?: (fastMode: boolean) => void;
   claudeThinking?: boolean;
@@ -194,8 +156,17 @@ function optionLabel<T extends string>(options: ReadonlyArray<{ id: T; label: st
   return options.find((option) => option.id === value)?.label ?? value;
 }
 
-function supportsContext(model: string): boolean {
-  return !!CLAUDE_MODELS.find((m) => m.id === model)?.context?.length;
+function codexModelLabel(model: CodexModelId): string {
+  return CODEX_MODELS.find((candidate) => candidate.id === model)?.label ?? formatCodexModelLabel(model);
+}
+
+function claudeModelLabel(model: ClaudeModelId): string {
+  const known = CLAUDE_MODELS.find((candidate) => candidate.id === model);
+  if (known) return known.label;
+  // A model dropped from the menu (superseded by a cheaper, stronger one) stays
+  // pinned on the sessions already using it, so name it the same way the menu
+  // would instead of leaking the raw id.
+  return model.startsWith('claude-') ? `Claude ${formatModelLabel(model)}` : model;
 }
 
 function supportsFast(model: string): boolean {
@@ -221,29 +192,10 @@ export function resolveClaudeEffortForModel(
   return defaultClaudeEffort(model);
 }
 
-export function defaultClaudeContextWindow(model: ClaudeModelId): ClaudeContextWindow | undefined {
-  const descriptor = CLAUDE_MODELS.find((candidate) => candidate.id === model);
-  return descriptor ? descriptor.defaultContext : DEFAULT_CLAUDE_CONTEXT_WINDOW;
-}
-
-export function resolveClaudeContextWindowForModel(
-  model: ClaudeModelId,
-  contextWindow: ClaudeContextWindow | undefined,
-): ClaudeContextWindow | undefined {
-  const descriptor = CLAUDE_MODELS.find((candidate) => candidate.id === model);
-  const supported = descriptor?.context;
-  if (contextWindow && (!descriptor || supported?.includes(contextWindow))) return contextWindow;
-  return defaultClaudeContextWindow(model);
-}
-
 function claudeEffortOptions(model: ClaudeModelId): ReadonlyArray<{ id: ClaudeEffort; label: string }> {
   const supported = CLAUDE_MODELS.find((candidate) => candidate.id === model)?.effort;
   if (!supported) return [];
   return supported.map((id) => CLAUDE_EFFORTS.find((option) => option.id === id) ?? { id, label: id });
-}
-
-function claudeContextOptions(model: ClaudeModelId): ReadonlyArray<ClaudeContextWindow> {
-  return CLAUDE_MODELS.find((candidate) => candidate.id === model)?.context ?? [];
 }
 
 function MenuRow<T extends string>({
@@ -388,9 +340,6 @@ export function AgentModelTraitsPicker(props: AgentModelTraitsPickerProps) {
   const claudeDefaultEffort = defaultClaudeEffort(claudeModel);
   const claudeSupportedEfforts = claudeEffortOptions(claudeModel);
   const claudeEffort = resolveClaudeEffortForModel(claudeModel, props.claudeEffort);
-  const claudeDefaultContextWindow = defaultClaudeContextWindow(claudeModel);
-  const claudeSupportedContextWindows = claudeContextOptions(claudeModel);
-  const claudeContextWindow = resolveClaudeContextWindowForModel(claudeModel, props.claudeContextWindow);
   const claudeFastMode = props.claudeFastMode ?? false;
   const claudeThinking = props.claudeThinking ?? false;
   const codexModel = props.codexModel ?? DEFAULT_CODEX_MODEL;
@@ -401,9 +350,7 @@ export function AgentModelTraitsPicker(props: AgentModelTraitsPickerProps) {
   const handleClaudeModel = (model: ClaudeModelId) => {
     props.onClaudeModelChange?.(model);
     const nextEffort = defaultClaudeEffort(model);
-    const nextContextWindow = defaultClaudeContextWindow(model);
     if (nextEffort) props.onClaudeEffortChange?.(nextEffort);
-    if (nextContextWindow) props.onClaudeContextWindowChange?.(nextContextWindow);
     if (!supportsFast(model)) props.onClaudeFastModeChange?.(false);
     if (!supportsThinking(model)) props.onClaudeThinkingChange?.(false);
   };
@@ -419,7 +366,7 @@ export function AgentModelTraitsPicker(props: AgentModelTraitsPickerProps) {
         <TraitSelect
           title="Model"
           selected={codexModel}
-          value={optionLabel(CODEX_MODELS, codexModel)}
+          value={codexModelLabel(codexModel)}
           items={CODEX_MODELS.map((model) => ({
             id: model.id,
             label: model.label,
@@ -449,7 +396,7 @@ export function AgentModelTraitsPicker(props: AgentModelTraitsPickerProps) {
       <TraitSelect
         title="Model"
         selected={claudeModel}
-        value={optionLabel(CLAUDE_MODELS, claudeModel)}
+        value={claudeModelLabel(claudeModel)}
         items={CLAUDE_MODELS.map((model) => ({
           id: model.id,
           label: model.label,
@@ -470,20 +417,6 @@ export function AgentModelTraitsPicker(props: AgentModelTraitsPickerProps) {
           }))}
           onSelect={(value) => props.onClaudeEffortChange?.(value)}
           testId="claude-reasoning-picker"
-        />
-      )}
-      {claudeContextWindow && claudeSupportedContextWindows.length > 0 && (
-        <TraitSelect
-          title="Context Window"
-          selected={claudeContextWindow}
-          value={claudeContextWindow === '1m' ? '1M' : '200K'}
-          items={claudeSupportedContextWindows.map((contextWindow) => ({
-            id: contextWindow,
-            label: contextWindow === '1m' ? '1M' : '200K',
-            defaultValue: contextWindow === claudeDefaultContextWindow,
-          }))}
-          onSelect={(value) => props.onClaudeContextWindowChange?.(value)}
-          testId="claude-context-picker"
         />
       )}
       {supportsFast(claudeModel) && (

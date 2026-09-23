@@ -30,7 +30,7 @@ import {
 // SDK is gone, and this list is a Cockpit-side contract anyway — `codexParams`
 // forwards whatever survives `resolveCodexReasoningEffort`, so an unknown value
 // is dropped here rather than rejected by the server mid-turn.
-type CodexReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
+type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 const MEDIA_EXT: Record<string, string> = {
   'image/png': '.png',
@@ -647,7 +647,6 @@ function codexThreadParams(ctx: RunCtx): Record<string, unknown> {
 
 function resolveCodexReasoningEffort(value: unknown): CodexReasoningEffort | undefined {
   switch (value) {
-    case 'minimal':
     case 'low':
     case 'medium':
     case 'high':

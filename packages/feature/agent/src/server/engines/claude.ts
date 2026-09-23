@@ -15,15 +15,20 @@ const PLAN_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 /** True for paths inside a `.claude/plans/` directory (project- or home-relative). */
 const isPlanFilePath = (p: string): boolean => /(^|\/)\.claude\/plans\//.test(p);
 const CLAUDE_SDK_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
-const CLAUDE_ULTRACODE_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5', 'claude-opus-4-8']);
-const CLAUDE_XHIGH_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5']);
+const CLAUDE_ULTRACODE_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8']);
+const CLAUDE_XHIGH_MODELS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-sonnet-5']);
 
+/**
+ * The bare model id, never a `[1m]` variant. Every model in the picker runs the
+ * 1M window natively (Opus 4.7 and later, Sonnet 5, Fable), so there is no
+ * window to select: the variant ids exist only for Opus 4.6 / Sonnet 4.6, which
+ * the picker no longer offers.
+ */
 function resolveClaudeModel(ctx: RunCtx): string | undefined {
   const model = typeof ctx.params.model === 'string' && ctx.params.model.trim()
     ? ctx.params.model.trim()
     : undefined;
-  if (!model) return undefined;
-  return ctx.params.claudeContextWindow === '1m' ? `${model}[1m]` : model;
+  return model || undefined;
 }
 
 function resolveClaudeEffort(ctx: RunCtx): string | undefined {

@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { Chat } from './Chat';
-import type { ChatEngine, EngineModelId, ToolCallInfo, ClaudeModelId, ClaudeEffort, ClaudeContextWindow, CodexModelId, CodexReasoningEffort } from './types';
+import type { ChatEngine, EngineModelId, ToolCallInfo, ClaudeModelId, ClaudeEffort, CodexModelId, CodexReasoningEffort } from './types';
 
 // Migrated from src/components/project/ChatPanel.tsx.
 
@@ -29,8 +29,6 @@ interface ChatPanelProps {
   onClaudeModelChange?: (tabId: string, model: ClaudeModelId) => void;
   claudeEffort?: ClaudeEffort;
   onClaudeEffortChange?: (tabId: string, effort: ClaudeEffort) => void;
-  claudeContextWindow?: ClaudeContextWindow;
-  onClaudeContextWindowChange?: (tabId: string, contextWindow: ClaudeContextWindow) => void;
   claudeFastMode?: boolean;
   onClaudeFastModeChange?: (tabId: string, fastMode: boolean) => void;
   claudeThinking?: boolean;
@@ -78,7 +76,7 @@ interface ChatPanelProps {
   onOpenFileLink?: (target: { path: string; lineNumber?: number }) => void;
 }
 
-export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeContextWindow, onClaudeContextWindowChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode, onPlanModeChange, noHistory, onNoHistoryChange, isActive, isFocused, peerTabId, peerSide, refreshSignal, onStateChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink }: ChatPanelProps) {
+export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode, onPlanModeChange, noHistory, onNoHistoryChange, isActive, isFocused, peerTabId, peerSide, refreshSignal, onStateChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink }: ChatPanelProps) {
   const handleLoadingChange = useCallback((isLoading: boolean) => {
     onStateChange(tabId, { isLoading });
   }, [tabId, onStateChange]);
@@ -124,10 +122,6 @@ export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollam
   const handleClaudeEffortChange = useCallback((effort: ClaudeEffort) => {
     onClaudeEffortChange?.(tabId, effort);
   }, [tabId, onClaudeEffortChange]);
-
-  const handleClaudeContextWindowChange = useCallback((contextWindow: ClaudeContextWindow) => {
-    onClaudeContextWindowChange?.(tabId, contextWindow);
-  }, [tabId, onClaudeContextWindowChange]);
 
   const handleClaudeFastModeChange = useCallback((fastMode: boolean) => {
     onClaudeFastModeChange?.(tabId, fastMode);
@@ -177,8 +171,6 @@ export function ChatPanel({ tabId, cwd, sessionId, engine, onEngineChange, ollam
       onClaudeModelChange={handleClaudeModelChange}
       claudeEffort={claudeEffort}
       onClaudeEffortChange={handleClaudeEffortChange}
-      claudeContextWindow={claudeContextWindow}
-      onClaudeContextWindowChange={handleClaudeContextWindowChange}
       claudeFastMode={claudeFastMode}
       onClaudeFastModeChange={handleClaudeFastModeChange}
       claudeThinking={claudeThinking}

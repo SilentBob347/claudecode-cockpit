@@ -129,9 +129,8 @@ export type EngineModelId = string;
 export type DeepseekModel = EngineModelId;
 export type ClaudeModelId = string;
 export type ClaudeEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultracode' | 'ultrathink';
-export type ClaudeContextWindow = '200k' | '1m';
 export type CodexModelId = string;
-export type CodexReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
+export type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 
 // There is deliberately no execution-mode type here. It used to be
 // `ChatMode = 'sdk' | 'builtin'`, a per-tab choice offered on deepseek/kimi/glm. The loop is

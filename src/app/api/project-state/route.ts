@@ -29,7 +29,6 @@ interface ProjectState {
   glmModels?: Record<string, string>
   claudeModels?: Record<string, string>
   claudeEfforts?: Record<string, string>
-  claudeContextWindows?: Record<string, string>
   claudeFastModes?: Record<string, boolean>
   claudeThinkings?: Record<string, boolean>
   codexModels?: Record<string, string>
@@ -147,7 +146,6 @@ export const POST = handler((req) =>
           const glmModels = carryOver(existing.glmModels, body.glmModels)
           const claudeModels = carryOver(existing.claudeModels, body.claudeModels)
           const claudeEfforts = carryOver(existing.claudeEfforts, body.claudeEfforts)
-          const claudeContextWindows = carryOver(existing.claudeContextWindows, body.claudeContextWindows)
           const claudeFastModes = carryOver(existing.claudeFastModes, body.claudeFastModes, (v) => !v)
           const claudeThinkings = carryOver(existing.claudeThinkings, body.claudeThinkings, (v) => !v)
           const codexModels = carryOver(existing.codexModels, body.codexModels)
@@ -197,7 +195,6 @@ export const POST = handler((req) =>
             ...(Object.keys(glmModels).length ? { glmModels } : {}),
             ...(Object.keys(claudeModels).length ? { claudeModels } : {}),
             ...(Object.keys(claudeEfforts).length ? { claudeEfforts } : {}),
-            ...(Object.keys(claudeContextWindows).length ? { claudeContextWindows } : {}),
             ...(Object.keys(claudeFastModes).length ? { claudeFastModes } : {}),
             ...(Object.keys(claudeThinkings).length ? { claudeThinkings } : {}),
             ...(Object.keys(codexModels).length ? { codexModels } : {}),

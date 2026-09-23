@@ -24,18 +24,15 @@ import { useChatStream, NO_BG_TASKS } from './useChatStream';
 import { TaskStoreContext, createTaskStore } from './taskStore';
 import { MessageList, MessageListHandle } from './MessageList';
 import { ChatInput } from './ChatInput';
-import type { ChatMessage, TokenUsage, LiveOutputTokens, BackgroundTaskInfo, ImageInfo, ChatEngine, EngineModelId, ToolCallInfo, ClaudeModelId, ClaudeEffort, ClaudeContextWindow, CodexModelId, CodexReasoningEffort } from './types';
+import type { ChatMessage, TokenUsage, LiveOutputTokens, BackgroundTaskInfo, ImageInfo, ChatEngine, EngineModelId, ToolCallInfo, ClaudeModelId, ClaudeEffort, CodexModelId, CodexReasoningEffort } from './types';
 // In-package siblings (chat-only)
 import { ProjectSessionsModal } from './ProjectSessionsModal';
 import { OllamaModelPicker } from './OllamaModelPicker';
 import { EngineConfigPicker } from './EngineConfigPicker';
 import {
   AgentModelTraitsPicker,
-  DEFAULT_CLAUDE_CONTEXT_WINDOW,
-  DEFAULT_CLAUDE_EFFORT,
   DEFAULT_CLAUDE_MODEL,
   DEFAULT_CODEX_MODEL,
-  resolveClaudeContextWindowForModel,
   resolveClaudeEffortForModel,
   resolveCodexReasoningEffortForModel,
 } from './AgentModelTraitsPicker';
@@ -81,8 +78,6 @@ interface ChatProps {
   onClaudeModelChange?: (model: ClaudeModelId) => void;
   claudeEffort?: ClaudeEffort;
   onClaudeEffortChange?: (effort: ClaudeEffort) => void;
-  claudeContextWindow?: ClaudeContextWindow;
-  onClaudeContextWindowChange?: (contextWindow: ClaudeContextWindow) => void;
   claudeFastMode?: boolean;
   onClaudeFastModeChange?: (fastMode: boolean) => void;
   claudeThinking?: boolean;
@@ -177,7 +172,7 @@ interface ChatProps {
  */
 const ENGINE_OPTIONS_ROW = `${COLUMN_HEADER_ROW} pl-3 pr-14 bg-card/50`;
 
-export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeContextWindow, onClaudeContextWindowChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode: planModeProp, onPlanModeChange, noHistory: noHistoryProp, onNoHistoryChange, hideHeader, hideSidebar, isActive = true, isFocused = isActive, peerTabId, peerSide, refreshSignal, onLoadingChange, onSessionIdChange, onTitleChange, onBotChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink, onOpenSessionBrowser, onOpenSettings }: ChatProps) {
+export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, onEngineChange, ollamaModel, onOllamaModelChange, deepseekModel, onDeepseekModelChange, kimiModel, onKimiModelChange, glmModel, onGlmModelChange, claudeModel, onClaudeModelChange, claudeEffort, onClaudeEffortChange, claudeFastMode, onClaudeFastModeChange, claudeThinking, onClaudeThinkingChange, codexModel, onCodexModelChange, codexReasoningEffort, onCodexReasoningEffortChange, planMode: planModeProp, onPlanModeChange, noHistory: noHistoryProp, onNoHistoryChange, hideHeader, hideSidebar, isActive = true, isFocused = isActive, peerTabId, peerSide, refreshSignal, onLoadingChange, onSessionIdChange, onTitleChange, onBotChange, onShowGitStatus, onOpenNote, isFavorite, onToggleFavorite, onCreateScheduledTask, onOpenSession, onContentSearch, onShowFileDiff, onOpenFileLink, onOpenSessionBrowser, onOpenSettings }: ChatProps) {
   const { t } = useTranslation();
   const composerSlot = useComposerSlot();
   // Owned here, not in ChatInput: the composer is portalled when this pane is
@@ -298,7 +293,6 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
   const isCodexEngine = engine === 'codex';
   const effectiveClaudeModel = claudeModel ?? DEFAULT_CLAUDE_MODEL;
   const effectiveClaudeEffort = resolveClaudeEffortForModel(effectiveClaudeModel, claudeEffort);
-  const effectiveClaudeContextWindow = resolveClaudeContextWindowForModel(effectiveClaudeModel, claudeContextWindow);
   const effectiveCodexModel = codexModel ?? DEFAULT_CODEX_MODEL;
   const effectiveCodexReasoningEffort = resolveCodexReasoningEffortForModel(effectiveCodexModel, codexReasoningEffort);
   // Engines configured by API key rather than by a local CLI login. They share one UI: a
@@ -348,7 +342,6 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
     engineModel,
     claudeModel: effectiveClaudeModel,
     claudeEffort: effectiveClaudeEffort,
-    claudeContextWindow: effectiveClaudeContextWindow,
     claudeFastMode,
     claudeThinking,
     codexModel: effectiveCodexModel,
@@ -858,8 +851,6 @@ export function Chat({ tabId, initialCwd, initialSessionId, engine: engineProp, 
               onClaudeModelChange={onClaudeModelChange}
               claudeEffort={effectiveClaudeEffort}
               onClaudeEffortChange={onClaudeEffortChange}
-              claudeContextWindow={effectiveClaudeContextWindow}
-              onClaudeContextWindowChange={onClaudeContextWindowChange}
               claudeFastMode={claudeFastMode}
               onClaudeFastModeChange={onClaudeFastModeChange}
               claudeThinking={claudeThinking}

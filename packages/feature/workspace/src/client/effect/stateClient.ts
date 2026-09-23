@@ -36,7 +36,6 @@ export interface LoadedProjectState {
   glmModels?: Record<string, string>
   claudeModels?: Record<string, string>
   claudeEfforts?: Record<string, string>
-  claudeContextWindows?: Record<string, string>
   claudeFastModes?: Record<string, boolean>
   claudeThinkings?: Record<string, boolean>
   codexModels?: Record<string, string>
@@ -78,7 +77,6 @@ export interface ProjectStateSave {
   glmModels?: Record<string, string>
   claudeModels?: Record<string, string>
   claudeEfforts?: Record<string, string>
-  claudeContextWindows?: Record<string, string>
   claudeFastModes?: Record<string, boolean>
   claudeThinkings?: Record<string, boolean>
   codexModels?: Record<string, string>
