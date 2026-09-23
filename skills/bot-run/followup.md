@@ -33,6 +33,6 @@ out, what the user already answered — is in *that* transcript, and a summary o
 thing. It has happened: a dispatcher decided Cockpit had no way to continue a session, re-delegated
 with a paragraph of context, and paid for the whole task twice.
 
-**A `[main session·@name]` line is not this case.** It ran here, in this transcript, so its
+**A `[main·@name]` line is not this case.** It ran here, in this transcript, so its
 follow-up is simply the next thing you do — no curl, no session id. Answering it through this
 endpoint would start a second, parallel turn on a session that is already yours.

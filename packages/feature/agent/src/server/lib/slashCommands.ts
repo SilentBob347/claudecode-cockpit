@@ -91,8 +91,9 @@ const COMMAND_LINE_RE = /^\s*(\/@|\/|@)(\S+?)(?:\s+|$)/;
 //     use. On a builtin write failure the content is inlined (never a no-op).
 //
 // Builtin bodies are English-only; `language` no longer selects a translation of
-// the skill, it only picks the wording of the wrapper text this function emits
-// (the locus word and the reference-list header).
+// the skill, it only picks the wording of the prose this function appends (the
+// reference-list headers and the degradation notes). The locus word is NOT part
+// of that — see locusWord.
 //
 // `{{BASE_URL}}` placeholders are substituted at WRITE time with the loopback
 // base URL (http://localhost:<port>) — /cg's curl recipes are executed by the
@@ -359,20 +360,26 @@ function renderCommandLine(
   showLocus: boolean,
 ): string {
   if (ref.path) {
-    const tag = showLocus ? `[${locusWord(mainSession, lang)}·${ref.name}]` : `[${ref.name}]`;
+    const tag = showLocus ? `[${locusWord(mainSession)}·${ref.name}]` : `[${ref.name}]`;
     return body ? `${tag} ${body}` : tag;
   }
-  const locus = showLocus ? `[${locusWord(mainSession, lang)}] ` : '';
+  const locus = showLocus ? `[${locusWord(mainSession)}] ` : '';
   const then = body ? (lang === 'zh' ? `，然后：${body}` : `, then: ${body}`) : '';
   return `${locus}${ref.content ?? ''}${then}`;
 }
 
 /** Bare execution-locus word: main session vs subagent. Takes the decision, not
  *  the marker — an `@bot` whose directory is this session's own cwd runs here,
- *  and that tag is what tells the reader the line is not a delegation. */
-function locusWord(mainSession: boolean, lang: 'zh' | 'en'): string {
-  if (!mainSession) return 'subagent';
-  return lang === 'zh' ? '主会话' : 'main session';
+ *  and that tag is what tells the reader the line is not a delegation.
+ *
+ *  NOT translated, deliberately — this is the one piece of wrapper text that is
+ *  quoted back VERBATIM by prose the model reads (`bot-run` keys three of its
+ *  rules off `[main·@name]`), so a language-dependent spelling forced that skill
+ *  to list both variants side by side and still left `subagent`, which never had
+ *  a translation, mixed into the same message. It is also not UI copy: the user
+ *  only ever sees it when a transcript is replayed from the jsonl. */
+function locusWord(mainSession: boolean): string {
+  return mainSession ? 'main' : 'subagent';
 }
 
 /**

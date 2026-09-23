@@ -171,7 +171,7 @@ describe('resolveCommandPrompt', () => {
     it('runs in this session: main-session locus, BOT.md to read, no bot-run', () => {
       const out = resolveCommandPrompt('@product check the roadmap', 'en', undefined, productDir());
       expect(out).toBe([
-        '[main session·@product] check the roadmap',
+        '[main·@product] check the roadmap',
         '',
         // bot-turn ahead of BOT.md — the general contract, then this Bot — and
         // both under "read", because this session is the one that works from them.
@@ -191,7 +191,7 @@ describe('resolveCommandPrompt', () => {
       // bot.json — exactly the case a raw === would miss in silence.
       for (const cwd of [`${productDir()}${path.sep}`, fs.realpathSync(productDir())]) {
         expect(resolveCommandPrompt('@product hi', 'en', undefined, cwd).split('\n')[0])
-          .toBe('[main session·@product] hi');
+          .toBe('[main·@product] hi');
       }
     });
 
@@ -211,7 +211,7 @@ describe('resolveCommandPrompt', () => {
     it('is decided per line: one Bot runs here while another is delegated', () => {
       const out = resolveCommandPrompt('@product mine\n@finance review the budget', 'en', undefined, productDir());
       expect(out).toBe([
-        '[main session·@product] mine',
+        '[main·@product] mine',
         '[subagent·@finance] review the budget',
         '',
         'Read these skill files first, then act accordingly:',
@@ -248,13 +248,32 @@ describe('resolveCommandPrompt', () => {
   it('mixes @bot with /skill and /@skill lines', () => {
     const out = resolveCommandPrompt('@product plan it\n\n/qa\n\n/@cr the diff', 'zh');
     expect(out).toContain('[subagent·@product] plan it');
-    expect(out).toContain('[主会话·qa]');
+    expect(out).toContain('[main·qa]');
     expect(out).toContain('[subagent·cr] the diff');
     expect(out).toContain('请先读取以下 skill 文件，再据此执行：');
     expect(out).toContain('以下文件交给你派发的子会话去读，你只转交路径，不要自己打开：');
     expect(out).toContain(`- @product：${productManifest}`);
     // The Bot's own path must not sit under the "read these" header.
     expect(out.indexOf('以下文件交给')).toBeLessThan(out.indexOf(`- @product：`));
+  });
+
+  // The locus word is the one piece of wrapper text `bot-run` quotes verbatim
+  // (three of its rules key off `[main·@name]`), so it must NOT follow the UI
+  // language: a zh user used to get `[主会话·qa]` next to an untranslated
+  // `[subagent·cr]` in the same message, and the skill had to spell both
+  // variants to stay readable. Only the surrounding prose is translated.
+  it('keeps the locus word language-independent', () => {
+    const msg = '/qa\n\n/@cr the diff';
+    const zh = resolveCommandPrompt(msg, 'zh');
+    const en = resolveCommandPrompt(msg, 'en');
+    for (const out of [zh, en]) {
+      expect(out).toContain('[main·qa]');
+      expect(out).toContain('[subagent·cr] the diff');
+    }
+    expect(zh).not.toContain('主会话');
+    // The prose around it still is translated — that is the control.
+    expect(zh).toContain('请先读取以下 skill 文件，再据此执行：');
+    expect(en).toContain('Read these skill files first, then act accordingly:');
   });
 
   it('leaves unknown @names and invalid Bots as prose, untouched and unremarked', () => {

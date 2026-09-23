@@ -1,7 +1,7 @@
 # Waiting for a delegated session
 
 Opened from `bot-run` the moment a delegate POST has returned. Everything here is about sessions
-you started; a `[main session·@name]` line has no session to wait for.
+you started; a `[main·@name]` line has no session to wait for.
 
 A Bot turn routinely outlasts a single bash call's tool timeout — a working-tree code review
 measured 11 minutes against a 10-minute ceiling — so the wait has to survive that. Two ways, in

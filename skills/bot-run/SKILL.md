@@ -15,9 +15,9 @@ end of the message under "pass the path along; do not open them yourself" — th
 reason you have those paths. The child reads them and works from them; keeping them out of this
 session is the point.
 
-## `[main session·@name]` is the opposite instruction
+## `[main·@name]` is the opposite instruction
 
-A line tagged `[main session·@name]` (`[主会话·@name]`) means that Bot's directory **is this
+A line tagged `[main·@name]` means that Bot's directory **is this
 session's own working directory**. There is nothing to delegate — you are already sitting in the
 files a child would have been started to reach. Read the `bot-turn` path, then that Bot's
 `BOT.md` — both are in the "read these skill files first" list rather than the handoff list,
@@ -25,7 +25,7 @@ because you are their reader this time — and do the task yourself, in the voic
 define. Nothing else in this file applies to such a line: no brief, no delegate call, no polling.
 
 A message may carry both tags. When it does, the order matters: **POST every `[subagent·@name]`
-brief first, then do your own `[main session·@name]` work, then poll.** The children run while you
+brief first, then do your own `[main·@name]` work, then poll.** The children run while you
 work; doing your own part first only makes them start late. In that message `bot-turn` is listed
 in both blocks on purpose — you read it for your own line and hand the same path over for theirs.
 
@@ -36,7 +36,7 @@ table before you act, not after**:
 
 | Open | When | Why it is not here |
 |---|---|---|
-| `{{COCKPIT_DIR}}/skills/bot-run/wait.md` | **The moment a delegate POST has returned** — before any status call | The poll loop, the budget rule, and what each status means. Every delegation needs it and no `[main session·@name]` line does, so it stays one read away rather than in front of a session that never delegates |
+| `{{COCKPIT_DIR}}/skills/bot-run/wait.md` | **The moment a delegate POST has returned** — before any status call | The poll loop, the budget rule, and what each status means. Every delegation needs it and no `[main·@name]` line does, so it stays one read away rather than in front of a session that never delegates |
 | `{{COCKPIT_DIR}}/skills/bot-run/followup.md` | The Bot asked something back, or the user answers your report | Continuing a session that already exists. Usually a later turn, and the turn that delegates does not need it in hand |
 
 **Never poll from memory of how this works.** If a POST has returned and you have not opened
@@ -132,7 +132,7 @@ answer lives in that session — do not paste it wholesale, and do not restate i
 repeat the status call with `--data-urlencode "full=1"`. Use the receipt's `link` exactly as
 returned — it is the only record of the delegation, and tool output is not searchable later.
 
-**A `[main session·@name]` line has no link**, because it happened here. Give it its own section
+**A `[main·@name]` line has no link**, because it happened here. Give it its own section
 alongside the delegated ones and close it the way `bot-turn` §2 requires — the answer, then the
 list of Bot files you read and changed. That list is the only record of what the answer stood on,
 and this is the one line in the message that may have edited those files directly.
@@ -143,7 +143,7 @@ the child saved it to — the user answers either in that session or by naming t
 one, and dropping either detail strands the work.
 
 Pressing stop here does not stop a delegated session — it is a separate run. Say so if the user
-expects otherwise. A `[main session·@name]` line is the exception: it runs in this session, so
+expects otherwise. A `[main·@name]` line is the exception: it runs in this session, so
 stop really does stop it.
 
 When the user answers your report — a correction, a pick from a numbered list, an answer to a
